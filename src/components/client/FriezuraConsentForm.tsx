@@ -27,6 +27,7 @@ const emptyForm = () => ({
   behavioralDetails: "",
   infoShared: false,
   expectationsSet: false,
+  ageAndOwnershipConfirmed: false,
   coatResponsibility: false,
 });
 
@@ -121,6 +122,7 @@ export function FriezuraConsentForm({ variant = "kiosk", onRequestExit }: Friezu
     (!form.hasBehavioralIssue || form.behavioralDetails.trim().length > 0) &&
     form.infoShared &&
     form.expectationsSet &&
+    form.ageAndOwnershipConfirmed &&
     form.coatResponsibility &&
     !!signatureData &&
     !submitting;
@@ -340,6 +342,12 @@ export function FriezuraConsentForm({ variant = "kiosk", onRequestExit }: Friezu
             label="בוצע תיאום ציפיות לגבי התספורת והתוצאה הרצויה."
             checked={form.expectationsSet}
             onChange={(v) => update("expectationsSet", v)}
+            required
+          />
+          <CheckboxRow
+            label="אני מצהיר/ה כי אני מעל גיל 18, וכי אני הבעלים החוקי של הכלב או מורשה מטעמו."
+            checked={form.ageAndOwnershipConfirmed}
+            onChange={(v) => update("ageAndOwnershipConfirmed", v)}
             required
           />
         </div>
