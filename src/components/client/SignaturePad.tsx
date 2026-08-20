@@ -60,7 +60,7 @@ export const SignaturePad = forwardRef<SignaturePadHandle, SignaturePadProps>(
         ctx.lineWidth = 2.5;
         ctx.lineCap = "round";
         ctx.lineJoin = "round";
-        ctx.strokeStyle = "#1e3733";
+        ctx.strokeStyle = "#701a75";
       }
     }, []);
 

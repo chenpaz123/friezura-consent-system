@@ -7,14 +7,14 @@
   "start_url": "/admin/queue",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#f7f9f8",
-  "theme_color": "#2f6759",
+  "background_color": "#fdf2f8",
+  "theme_color": "#c026d3",
   "orientation": "portrait",
   "icons": [
     {
-      "src": "/icons/icon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
+      "src": "/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
       "purpose": "any maskable"
     }
   ]

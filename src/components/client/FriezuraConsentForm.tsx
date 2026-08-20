@@ -3,8 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { CheckboxRow } from "@/components/client/CheckboxRow";
+import { DateInput } from "@/components/client/DateInput";
 import { SignaturePad, SignaturePadHandle } from "@/components/client/SignaturePad";
 import { CheckInSuccess } from "@/components/client/CheckInSuccess";
+import { isoToDisplay, todayISO } from "@/lib/date";
 import type { CreateConsentPayload, Dog, LookupCustomerResponse } from "@/lib/types";
 
 interface FriezuraConsentFormProps {
@@ -13,17 +15,11 @@ interface FriezuraConsentFormProps {
   onRequestExit?: () => void;
 }
 
-function todayISODate() {
-  const now = new Date();
-  const offset = now.getTimezoneOffset();
-  return new Date(now.getTime() - offset * 60000).toISOString().slice(0, 10);
-}
-
 const emptyForm = () => ({
   phone: "",
   fullName: "",
   dogName: "",
-  date: todayISODate(),
+  date: todayISO(),
   isHealthy: false,
   hasMedicalIssue: false,
   medicalDetails: "",
@@ -190,6 +186,11 @@ export function FriezuraConsentForm({ variant = "kiosk", onRequestExit }: Friezu
 
   return (
     <div className="mx-auto w-full max-w-md space-y-8 px-5 py-8">
+      <div className="flex justify-center">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/logo.jpg" alt="Friezura" className="h-16 w-auto" />
+      </div>
+
       <div>
         <h1 className="text-2xl font-bold text-brand-900">תיאום ציפיות ואישור טיפול</h1>
         <p className="mt-1 text-slate-500">אנא מלאו את הפרטים הבאים לפני תחילת הטיפול.</p>
@@ -286,14 +287,7 @@ export function FriezuraConsentForm({ variant = "kiosk", onRequestExit }: Friezu
           <label htmlFor="date" className="mb-1 block text-sm font-medium text-slate-700">
             תאריך
           </label>
-          <input
-            id="date"
-            type="date"
-            dir="ltr"
-            value={form.date}
-            onChange={(e) => update("date", e.target.value)}
-            className={`${inputClass} text-left`}
-          />
+          <DateInput id="date" value={form.date} onChange={(iso) => update("date", iso)} className={inputClass} />
         </div>
       </section>
 
@@ -372,9 +366,9 @@ export function FriezuraConsentForm({ variant = "kiosk", onRequestExit }: Friezu
             <span className="font-medium text-slate-800">שם: </span>
             {form.fullName || "—"}
           </span>
-          <span>
+          <span dir="ltr">
             <span className="font-medium text-slate-800">תאריך: </span>
-            {form.date}
+            {isoToDisplay(form.date)}
           </span>
         </div>
 

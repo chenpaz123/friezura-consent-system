@@ -6,7 +6,7 @@ import { FriezuraConsentForm } from "@/components/client/FriezuraConsentForm";
  */
 export default function ConsentPage() {
   return (
-    <main className="min-h-screen bg-brand-50/40">
+    <main className="min-h-screen bg-pink-50">
       <FriezuraConsentForm variant="kiosk" />
     </main>
   );

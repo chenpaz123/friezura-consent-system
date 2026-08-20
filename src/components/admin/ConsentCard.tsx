@@ -1,11 +1,8 @@
+import { formatIsraeliDate, formatIsraeliTime } from "@/lib/date";
 import type { ConsentWithRelations } from "@/lib/types";
 
 interface ConsentCardProps {
   consent: ConsentWithRelations;
-}
-
-function formatTime(iso: string) {
-  return new Date(iso).toLocaleTimeString("he-IL", { hour: "numeric", minute: "2-digit" });
 }
 
 function Flag({ label, active }: { label: string; active: boolean }) {
@@ -37,8 +34,8 @@ export function ConsentCard({ consent }: ConsentCardProps) {
             {consent.customers?.full_name ?? "בעלים לא ידוע"} · {consent.customers?.phone_number}
           </p>
         </div>
-        <span className="whitespace-nowrap text-xs font-medium text-slate-400">
-          {formatTime(consent.created_at)}
+        <span dir="ltr" className="whitespace-nowrap text-xs font-medium text-slate-400">
+          {formatIsraeliDate(new Date(consent.created_at))} · {formatIsraeliTime(new Date(consent.created_at))}
         </span>
       </div>
 

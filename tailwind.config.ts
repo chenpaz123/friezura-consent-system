@@ -11,17 +11,20 @@ const config: Config = {
         sans: ["var(--font-heebo)", "Heebo", "Arial", "sans-serif"],
       },
       colors: {
+        // A pink-to-purple (fuchsia) scale: pairs with the soft pink page
+        // backgrounds (literal Tailwind `pink-*`) while its darker end
+        // matches the brand's deep-purple logo.
         brand: {
-          50: "#f2f7f5",
-          100: "#dcebe4",
-          200: "#b9d7ca",
-          300: "#8fbead",
-          400: "#5f9d89",
-          500: "#3f8170",
-          600: "#2f6759",
-          700: "#275249",
-          800: "#22423c",
-          900: "#1e3733",
+          50: "#fdf4ff",
+          100: "#fae8ff",
+          200: "#f5d0fe",
+          300: "#f0abfc",
+          400: "#e879f9",
+          500: "#d946ef",
+          600: "#c026d3",
+          700: "#a21caf",
+          800: "#86198f",
+          900: "#701a75",
         },
       },
     },

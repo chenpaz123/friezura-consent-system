@@ -12,13 +12,17 @@ export const metadata: Metadata = {
   title: "Friezura",
   description: "מערכת דיגיטלית לתיאום ציפיות ואישור טיפול למספרת כלבים",
   manifest: "/manifest.json",
+  icons: {
+    icon: "/icon-512x512.png",
+    apple: "/icon-512x512.png",
+  },
 };
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
-  themeColor: "#2f6759",
+  themeColor: "#c026d3",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
