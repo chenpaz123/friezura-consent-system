@@ -1,12 +1,18 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { deleteConsent } from "@/app/actions/deleteConsent";
 import { formatIsraeliDate, formatIsraeliTime } from "@/lib/date";
+import { SUPER_ADMIN_PIN } from "@/lib/pins";
 import type { ConsentWithRelations } from "@/lib/types";
 
 interface ConsentDetailsModalProps {
   consent: ConsentWithRelations;
   onClose: () => void;
+  /** Surfaces the destructive "Delete Entry" action. Only set for a super-admin session. */
+  isSuperAdmin?: boolean;
+  /** Called after a successful delete so the parent can drop it from its list and close the modal. */
+  onDeleted?: (id: string) => void;
 }
 
 function InfoRow({ label, value, dir }: { label: string; value: string; dir?: "ltr" | "rtl" }) {
@@ -27,7 +33,10 @@ function InfoRow({ label, value, dir }: { label: string; value: string; dir?: "l
  * health/behavior questionnaire answers (verbatim), the coat-condition
  * agreement, and the rendered signature.
  */
-export function ConsentDetailsModal({ consent, onClose }: ConsentDetailsModalProps) {
+export function ConsentDetailsModal({ consent, onClose, isSuperAdmin, onDeleted }: ConsentDetailsModalProps) {
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
@@ -37,6 +46,19 @@ export function ConsentDetailsModal({ consent, onClose }: ConsentDetailsModalPro
   }, [onClose]);
 
   const createdAt = new Date(consent.created_at);
+
+  const handleDelete = async () => {
+    if (!window.confirm("האם אתה בטוח שברצונך למחוק רשומה זו לצמיתות?")) return;
+    setDeleting(true);
+    setDeleteError(null);
+    const result = await deleteConsent(consent.id, SUPER_ADMIN_PIN);
+    if (result.success) {
+      onDeleted?.(consent.id);
+    } else {
+      setDeleteError(result.error ?? "מחיקת הרשומה נכשלה.");
+      setDeleting(false);
+    }
+  };
 
   return (
     <div
@@ -141,6 +163,20 @@ export function ConsentDetailsModal({ consent, onClose }: ConsentDetailsModalPro
               />
             </div>
           </section>
+
+          {isSuperAdmin && (
+            <section className="space-y-2 border-t border-slate-200 pt-6">
+              {deleteError && <p className="text-sm text-red-600">{deleteError}</p>}
+              <button
+                type="button"
+                onClick={handleDelete}
+                disabled={deleting}
+                className="w-full rounded-xl bg-red-600 px-4 py-3 font-semibold text-white shadow-sm active:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {deleting ? "מוחק…" : "מחק רשומה"}
+              </button>
+            </section>
+          )}
         </div>
 
         <div className="sticky bottom-0 border-t border-slate-100 bg-white/95 px-5 py-4 backdrop-blur">

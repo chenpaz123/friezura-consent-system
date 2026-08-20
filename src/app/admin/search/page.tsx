@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { ConsentCard } from "@/components/admin/ConsentCard";
 import { ConsentDetailsModal } from "@/components/admin/ConsentDetailsModal";
+import { useIsSuperAdmin } from "@/lib/useIsSuperAdmin";
 import type { ConsentWithRelations } from "@/lib/types";
 
 const RESULT_LIMIT = 25;
@@ -50,6 +51,7 @@ export default function SearchPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedConsent, setSelectedConsent] = useState<ConsentWithRelations | null>(null);
+  const isSuperAdmin = useIsSuperAdmin();
   const trimmed = useMemo(() => query.trim(), [query]);
 
   useEffect(() => {
@@ -109,7 +111,15 @@ export default function SearchPage() {
       </div>
 
       {selectedConsent && (
-        <ConsentDetailsModal consent={selectedConsent} onClose={() => setSelectedConsent(null)} />
+        <ConsentDetailsModal
+          consent={selectedConsent}
+          onClose={() => setSelectedConsent(null)}
+          isSuperAdmin={isSuperAdmin}
+          onDeleted={(id) => {
+            setResults((prev) => prev.filter((c) => c.id !== id));
+            setSelectedConsent(null);
+          }}
+        />
       )}
     </div>
   );

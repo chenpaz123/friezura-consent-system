@@ -3,16 +3,21 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { BottomNav } from "@/components/admin/BottomNav";
-import { ADMIN_PIN, PinGate } from "@/components/admin/PinGate";
+import { PinGate } from "@/components/admin/PinGate";
+import { ADMIN_PIN, SUPER_ADMIN_PIN } from "@/lib/pins";
+import { markSuperAdmin } from "@/lib/useIsSuperAdmin";
 
 const SESSION_KEY = "friezura_admin_unlocked";
 
 /**
  * Gates the entire /admin dashboard (Live Queue, Search, Manual Entry, and
- * any future sub-view) behind a fixed staff PIN. The unlock is remembered
- * for the browser tab's session so staff aren't re-prompted on every
- * navigation, but a fresh browser session (e.g. the salon tablet restarting)
- * requires the PIN again.
+ * any future sub-view) behind a staff PIN. The regular PIN (1717) unlocks
+ * the dashboard normally; a second, undisclosed PIN (1301) also unlocks it
+ * but additionally marks the session as super-admin, surfacing destructive
+ * actions (e.g. deleting a consent) that are otherwise hidden. The unlock is
+ * remembered for the browser tab's session so staff aren't re-prompted on
+ * every navigation, but a fresh browser session (e.g. the salon tablet
+ * restarting) requires the PIN again.
  */
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -31,11 +36,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   if (!unlocked) {
     return (
       <PinGate
-        pin={ADMIN_PIN}
+        pins={[ADMIN_PIN, SUPER_ADMIN_PIN]}
         variant="screen"
         title="הזינו קוד גישה ללוח הניהול"
-        onSuccess={() => {
+        onSuccess={(matchedPin) => {
           sessionStorage.setItem(SESSION_KEY, "true");
+          if (matchedPin === SUPER_ADMIN_PIN) markSuperAdmin();
           setUnlocked(true);
         }}
         onCancel={() => router.push("/")}

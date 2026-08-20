@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { ConsentCard } from "@/components/admin/ConsentCard";
 import { ConsentDetailsModal } from "@/components/admin/ConsentDetailsModal";
+import { useIsSuperAdmin } from "@/lib/useIsSuperAdmin";
 import type { ConsentWithRelations } from "@/lib/types";
 
 const CONSENT_SELECT = "*, customers ( full_name, phone_number ), dogs ( name )";
@@ -49,6 +50,7 @@ export function LiveQueue() {
   const [error, setError] = useState<string | null>(null);
   const [connected, setConnected] = useState(false);
   const [selectedConsent, setSelectedConsent] = useState<ConsentWithRelations | null>(null);
+  const isSuperAdmin = useIsSuperAdmin();
 
   useEffect(() => {
     let cancelled = false;
@@ -96,6 +98,16 @@ export function LiveQueue() {
           if (data) {
             setConsents((prev) => [data as unknown as ConsentWithRelations, ...prev]);
           }
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "DELETE", schema: "public", table: "consents" },
+        (payload) => {
+          // Keeps every open admin tab in sync when a super-admin deletes a
+          // test entry elsewhere, not just the tab that performed the delete.
+          const oldRow = payload.old as { id: string };
+          setConsents((prev) => prev.filter((c) => c.id !== oldRow.id));
         }
       )
       .subscribe((status) => setConnected(status === "SUBSCRIBED"));
@@ -161,7 +173,15 @@ export function LiveQueue() {
       </div>
 
       {selectedConsent && (
-        <ConsentDetailsModal consent={selectedConsent} onClose={() => setSelectedConsent(null)} />
+        <ConsentDetailsModal
+          consent={selectedConsent}
+          onClose={() => setSelectedConsent(null)}
+          isSuperAdmin={isSuperAdmin}
+          onDeleted={(id) => {
+            setConsents((prev) => prev.filter((c) => c.id !== id));
+            setSelectedConsent(null);
+          }}
+        />
       )}
     </div>
   );

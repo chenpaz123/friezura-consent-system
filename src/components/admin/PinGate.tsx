@@ -1,21 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { ADMIN_PIN } from "@/lib/pins";
 
-/**
- * The single staff PIN used everywhere in the app: entering the /admin
- * dashboard and leaving "Manual Entry" mode back to it. Keeping one
- * hardcoded constant (instead of an env var) means every PinGate always
- * agrees on what counts as a valid code.
- */
-export const ADMIN_PIN = "1717";
+export { ADMIN_PIN };
 
 interface PinGateProps {
-  /** Defaults to ADMIN_PIN; only override for tests or a future distinct gate. */
-  pin?: string;
+  /** One or more valid PINs (all must be the same length). Defaults to [ADMIN_PIN]. */
+  pins?: string[];
   title?: string;
   cancelLabel?: string;
-  onSuccess: () => void;
+  /** Called with whichever pin from `pins` matched, so the caller can branch on which one was used. */
+  onSuccess: (matchedPin: string) => void;
   onCancel: () => void;
   /**
    * "modal" overlays existing content on a dark backdrop (Manual Entry exit).
@@ -37,7 +33,7 @@ interface PinGateProps {
  * page's natural RTL flow.
  */
 export function PinGate({
-  pin = ADMIN_PIN,
+  pins = [ADMIN_PIN],
   title = "הזינו קוד צוות כדי להמשיך",
   cancelLabel = "ביטול",
   onSuccess,
@@ -46,12 +42,13 @@ export function PinGate({
 }: PinGateProps) {
   const [entered, setEntered] = useState("");
   const [shake, setShake] = useState(false);
-  const pinLength = pin.length;
+  const pinLength = pins[0].length;
 
   useEffect(() => {
     if (entered.length < pinLength) return;
-    if (entered === pin) {
-      onSuccess();
+    const matched = pins.find((p) => p === entered);
+    if (matched) {
+      onSuccess(matched);
     } else {
       setShake(true);
       const timer = setTimeout(() => {
@@ -60,7 +57,7 @@ export function PinGate({
       }, 400);
       return () => clearTimeout(timer);
     }
-  }, [entered, onSuccess, pin, pinLength]);
+  }, [entered, onSuccess, pins, pinLength]);
 
   const press = (digit: string) => {
     if (entered.length >= pinLength) return;
