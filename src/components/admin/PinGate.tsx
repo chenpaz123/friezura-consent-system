@@ -2,10 +2,16 @@
 
 import { useEffect, useState } from "react";
 
-const DEFAULT_PIN = process.env.NEXT_PUBLIC_ADMIN_EXIT_PIN || "1234";
+/**
+ * The single staff PIN used everywhere in the app: entering the /admin
+ * dashboard and leaving "Manual Entry" mode back to it. Keeping one
+ * hardcoded constant (instead of an env var) means every PinGate always
+ * agrees on what counts as a valid code.
+ */
+export const ADMIN_PIN = "1717";
 
 interface PinGateProps {
-  /** PIN to match against. Defaults to NEXT_PUBLIC_ADMIN_EXIT_PIN (the Manual Entry "staff exit" gate). */
+  /** Defaults to ADMIN_PIN; only override for tests or a future distinct gate. */
   pin?: string;
   title?: string;
   cancelLabel?: string;
@@ -23,9 +29,15 @@ interface PinGateProps {
  * Mobile-friendly, RTL PIN pad. Reused both to gate the entire admin
  * dashboard behind a fixed PIN and to gate leaving "Manual Entry" mode
  * back to the dashboard.
+ *
+ * The digit pad (1-9, 0) is always ordered left-to-right like a standard
+ * numeric keypad — universal convention even in RTL apps — regardless of
+ * the page's ambient `dir`, via an explicit `dir="ltr"` on that grid only.
+ * The cancel/backspace row sits in its own grid and keeps following the
+ * page's natural RTL flow.
  */
 export function PinGate({
-  pin = DEFAULT_PIN,
+  pin = ADMIN_PIN,
   title = "הזינו קוד צוות כדי להמשיך",
   cancelLabel = "ביטול",
   onSuccess,
@@ -55,6 +67,10 @@ export function PinGate({
     setEntered((prev) => prev + digit);
   };
 
+  const digitButtonClass =
+    "rounded-xl bg-pink-50 py-3 text-lg font-semibold text-slate-700 active:bg-pink-100";
+  const actionButtonClass = "rounded-xl py-3 text-sm font-medium text-slate-400 active:bg-slate-100";
+
   const card = (
     <div className="w-full max-w-xs rounded-2xl bg-white p-6 text-center shadow-xl">
       <p className="mb-4 font-semibold text-brand-900">{title}</p>
@@ -74,35 +90,27 @@ export function PinGate({
         ))}
       </div>
 
-      <div className="grid grid-cols-3 gap-3">
+      {/* Digit pad: always left-to-right (1,2,3 / 4,5,6 / 7,8,9), independent of page direction. */}
+      <div dir="ltr" className="grid grid-cols-3 gap-3">
         {["1", "2", "3", "4", "5", "6", "7", "8", "9"].map((digit) => (
-          <button
-            key={digit}
-            type="button"
-            onClick={() => press(digit)}
-            className="rounded-xl bg-pink-50 py-3 text-lg font-semibold text-slate-700 active:bg-pink-100"
-          >
+          <button key={digit} type="button" onClick={() => press(digit)} className={digitButtonClass}>
             {digit}
           </button>
         ))}
-        <button
-          type="button"
-          onClick={onCancel}
-          className="rounded-xl py-3 text-sm font-medium text-slate-400 active:bg-slate-100"
-        >
+      </div>
+
+      {/* Action row: cancel / 0 / backspace, following the page's natural RTL order. */}
+      <div className="mt-3 grid grid-cols-3 gap-3">
+        <button type="button" onClick={onCancel} className={actionButtonClass}>
           {cancelLabel}
         </button>
-        <button
-          type="button"
-          onClick={() => press("0")}
-          className="rounded-xl bg-pink-50 py-3 text-lg font-semibold text-slate-700 active:bg-pink-100"
-        >
+        <button type="button" onClick={() => press("0")} className={digitButtonClass}>
           0
         </button>
         <button
           type="button"
           onClick={() => setEntered((prev) => prev.slice(0, -1))}
-          className="rounded-xl py-3 text-sm font-medium text-slate-400 active:bg-slate-100"
+          className={actionButtonClass}
         >
           ⌫
         </button>

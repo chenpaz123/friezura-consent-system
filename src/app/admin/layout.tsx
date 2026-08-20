@@ -3,9 +3,8 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { BottomNav } from "@/components/admin/BottomNav";
-import { PinGate } from "@/components/admin/PinGate";
+import { ADMIN_PIN, PinGate } from "@/components/admin/PinGate";
 
-const ADMIN_PIN = "1717";
 const SESSION_KEY = "friezura_admin_unlocked";
 
 /**

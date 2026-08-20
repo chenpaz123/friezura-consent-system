@@ -65,11 +65,15 @@ Copy `.env.local.example` to `.env.local` and fill in:
 NEXT_PUBLIC_SUPABASE_URL=https://your-project-ref.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-public-key
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key   # server-only, never exposed to the browser
-NEXT_PUBLIC_ADMIN_EXIT_PIN=1234                   # staff PIN to leave Manual Entry mode
 ```
 
 On Vercel, set the same variables in **Project Settings → Environment
 Variables** for Production/Preview/Development.
+
+The staff PIN (`1717`) that gates the `/admin` dashboard and leaving
+"Manual Entry" mode is a fixed constant (`ADMIN_PIN` in
+`src/components/admin/PinGate.tsx`), not an environment variable — change
+it there if it ever needs to differ per environment.
 
 ## Local development
 
