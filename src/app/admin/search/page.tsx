@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { ConsentCard } from "@/components/admin/ConsentCard";
+import { ConsentDetailsModal } from "@/components/admin/ConsentDetailsModal";
 import type { ConsentWithRelations } from "@/lib/types";
 
 const RESULT_LIMIT = 25;
@@ -48,6 +49,7 @@ export default function SearchPage() {
   const [results, setResults] = useState<ConsentWithRelations[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedConsent, setSelectedConsent] = useState<ConsentWithRelations | null>(null);
   const trimmed = useMemo(() => query.trim(), [query]);
 
   useEffect(() => {
@@ -102,9 +104,13 @@ export default function SearchPage() {
 
       <div className="space-y-3">
         {results.map((consent) => (
-          <ConsentCard key={consent.id} consent={consent} />
+          <ConsentCard key={consent.id} consent={consent} onClick={() => setSelectedConsent(consent)} />
         ))}
       </div>
+
+      {selectedConsent && (
+        <ConsentDetailsModal consent={selectedConsent} onClose={() => setSelectedConsent(null)} />
+      )}
     </div>
   );
 }

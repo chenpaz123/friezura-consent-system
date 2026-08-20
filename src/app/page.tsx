@@ -3,9 +3,10 @@ import Link from "next/link";
 export default function HomePage() {
   return (
     <main className="mx-auto flex min-h-screen max-w-md flex-col items-center justify-center gap-6 px-6 text-center">
-      <div>
-        <h1 className="text-3xl font-bold text-brand-900">Friezura</h1>
-        <p className="mt-2 text-slate-500">מערכת דיגיטלית לתיאום ציפיות ואישור טיפול למספרת כלבים.</p>
+      <div className="flex flex-col items-center gap-3">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/logo.jpg" alt="Friezura" className="h-auto w-56 rounded-2xl shadow-sm" />
+        <p className="text-slate-500">מערכת דיגיטלית לתיאום ציפיות ואישור טיפול למספרת כלבים.</p>
       </div>
       <div className="flex w-full flex-col gap-3">
         <Link

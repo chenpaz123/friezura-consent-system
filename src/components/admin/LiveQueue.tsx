@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { ConsentCard } from "@/components/admin/ConsentCard";
+import { ConsentDetailsModal } from "@/components/admin/ConsentDetailsModal";
 import type { ConsentWithRelations } from "@/lib/types";
 
 const CONSENT_SELECT = "*, customers ( full_name, phone_number ), dogs ( name )";
@@ -24,6 +25,7 @@ export function LiveQueue() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [connected, setConnected] = useState(false);
+  const [selectedConsent, setSelectedConsent] = useState<ConsentWithRelations | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -104,9 +106,13 @@ export function LiveQueue() {
 
       <div className="space-y-3">
         {consents.map((consent) => (
-          <ConsentCard key={consent.id} consent={consent} />
+          <ConsentCard key={consent.id} consent={consent} onClick={() => setSelectedConsent(consent)} />
         ))}
       </div>
+
+      {selectedConsent && (
+        <ConsentDetailsModal consent={selectedConsent} onClose={() => setSelectedConsent(null)} />
+      )}
     </div>
   );
 }

@@ -3,6 +3,7 @@ import type { ConsentWithRelations } from "@/lib/types";
 
 interface ConsentCardProps {
   consent: ConsentWithRelations;
+  onClick?: () => void;
 }
 
 function Flag({ label, active }: { label: string; active: boolean }) {
@@ -18,14 +19,27 @@ function Flag({ label, active }: { label: string; active: boolean }) {
   );
 }
 
-export function ConsentCard({ consent }: ConsentCardProps) {
+export function ConsentCard({ consent, onClick }: ConsentCardProps) {
   const needsAttention = consent.has_medical_issue || consent.has_behavioral_issue;
 
   return (
     <div
-      className={`rounded-2xl border bg-white p-4 shadow-sm ${
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onClick={onClick}
+      onKeyDown={
+        onClick
+          ? (e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onClick();
+              }
+            }
+          : undefined
+      }
+      className={`rounded-2xl border bg-white p-4 shadow-sm transition-colors ${
         needsAttention ? "border-red-200" : "border-brand-100"
-      }`}
+      } ${onClick ? "cursor-pointer active:bg-pink-50" : ""}`}
     >
       <div className="flex items-start justify-between gap-3">
         <div>
