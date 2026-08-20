@@ -11,7 +11,9 @@ const heebo = Heebo({
 export const metadata: Metadata = {
   title: "Friezura",
   description: "מערכת דיגיטלית לתיאום ציפיות ואישור טיפול למספרת כלבים",
-  manifest: "/manifest.json",
+  // No `manifest` here on purpose — PWA installability is scoped to /admin
+  // only (see src/app/admin/layout.tsx), so the public client form never
+  // triggers an "Add to Home Screen" prompt.
   icons: {
     icon: "/icon-512x512.png",
     apple: "/icon-512x512.png",
