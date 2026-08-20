@@ -1,0 +1,21 @@
+{
+  "name": "Friezura",
+  "short_name": "Friezura",
+  "description": "לוח ניהול פריזורה — תור חי, חיפוש לקוחות והחתמה ידנית",
+  "lang": "he",
+  "dir": "rtl",
+  "start_url": "/admin/queue",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f7f9f8",
+  "theme_color": "#2f6759",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

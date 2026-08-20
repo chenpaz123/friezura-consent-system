@@ -1,0 +1,394 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import { Button } from "@/components/ui/Button";
+import { CheckboxRow } from "@/components/client/CheckboxRow";
+import { SignaturePad, SignaturePadHandle } from "@/components/client/SignaturePad";
+import { CheckInSuccess } from "@/components/client/CheckInSuccess";
+import type { CreateConsentPayload, Dog, LookupCustomerResponse } from "@/lib/types";
+
+interface FriezuraConsentFormProps {
+  /** "manual" is used by the admin's Manual Entry mode; adds a "Return to dashboard" exit. */
+  variant?: "kiosk" | "manual";
+  onRequestExit?: () => void;
+}
+
+function todayISODate() {
+  const now = new Date();
+  const offset = now.getTimezoneOffset();
+  return new Date(now.getTime() - offset * 60000).toISOString().slice(0, 10);
+}
+
+const emptyForm = () => ({
+  phone: "",
+  fullName: "",
+  dogName: "",
+  date: todayISODate(),
+  isHealthy: false,
+  hasMedicalIssue: false,
+  medicalDetails: "",
+  hasBehavioralIssue: false,
+  behavioralDetails: "",
+  infoShared: false,
+  expectationsSet: false,
+  coatResponsibility: false,
+});
+
+/**
+ * The Friezura client consent form — one continuous, mobile-first Hebrew
+ * page covering: identifying info, the health/behavior questionnaire, the
+ * coat-condition responsibility waiver, and the final signature.
+ */
+export function FriezuraConsentForm({ variant = "kiosk", onRequestExit }: FriezuraConsentFormProps) {
+  const [form, setForm] = useState(emptyForm());
+  const [existingDogs, setExistingDogs] = useState<Dog[]>([]);
+  const [selectedDogId, setSelectedDogId] = useState<string | "new" | null>(null);
+  const [nameWasAutofilled, setNameWasAutofilled] = useState(false);
+
+  const [signatureData, setSignatureData] = useState<string | null>(null);
+  const padRef = useRef<SignaturePadHandle>(null);
+
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
+
+  const update = <K extends keyof ReturnType<typeof emptyForm>>(key: K, value: ReturnType<typeof emptyForm>[K]) =>
+    setForm((prev) => ({ ...prev, [key]: value }));
+
+  // Debounced lookup: as soon as a full phone number is entered, prefill
+  // the customer's name and let them pick from their dogs on file.
+  useEffect(() => {
+    const digits = form.phone.replace(/\D/g, "");
+    if (digits.length < 9) {
+      setExistingDogs([]);
+      setSelectedDogId(null);
+      return;
+    }
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch("/api/customers/lookup", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ phone: form.phone }),
+        });
+        const data: LookupCustomerResponse = await res.json();
+        if (cancelled || !data.exists || !data.customer) return;
+
+        if (!form.fullName || nameWasAutofilled) {
+          update("fullName", data.customer.full_name);
+          setNameWasAutofilled(true);
+        }
+        setExistingDogs(data.dogs);
+        setSelectedDogId(data.dogs.length > 0 ? data.dogs[0].id : "new");
+      } catch {
+        // Silent — lookup is just a convenience prefill, not required for submission.
+      }
+    }, 500);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.phone]);
+
+  const setHealthy = (checked: boolean) => {
+    update("isHealthy", checked);
+    if (checked) {
+      update("hasMedicalIssue", false);
+      update("medicalDetails", "");
+    }
+  };
+
+  const setHasMedicalIssue = (checked: boolean) => {
+    update("hasMedicalIssue", checked);
+    if (checked) update("isHealthy", false);
+    else update("medicalDetails", "");
+  };
+
+  const setHasBehavioralIssue = (checked: boolean) => {
+    update("hasBehavioralIssue", checked);
+    if (!checked) update("behavioralDetails", "");
+  };
+
+  const dogNameValid =
+    existingDogs.length > 0 ? selectedDogId === "new" ? form.dogName.trim().length > 0 : !!selectedDogId : form.dogName.trim().length > 0;
+
+  const canSubmit =
+    form.phone.replace(/\D/g, "").length >= 9 &&
+    form.fullName.trim().length > 0 &&
+    dogNameValid &&
+    form.date.length > 0 &&
+    (form.isHealthy || form.hasMedicalIssue) &&
+    (!form.hasMedicalIssue || form.medicalDetails.trim().length > 0) &&
+    (!form.hasBehavioralIssue || form.behavioralDetails.trim().length > 0) &&
+    form.infoShared &&
+    form.expectationsSet &&
+    form.coatResponsibility &&
+    !!signatureData &&
+    !submitting;
+
+  const resetForm = () => {
+    setForm(emptyForm());
+    setExistingDogs([]);
+    setSelectedDogId(null);
+    setNameWasAutofilled(false);
+    setSignatureData(null);
+    setSubmitError(null);
+    setSuccess(false);
+    padRef.current?.clear();
+  };
+
+  const handleSubmit = async () => {
+    if (!canSubmit || !signatureData) return;
+    setSubmitting(true);
+    setSubmitError(null);
+    try {
+      const payload: CreateConsentPayload = {
+        customerPhone: form.phone,
+        fullName: form.fullName.trim(),
+        dogId: selectedDogId && selectedDogId !== "new" ? selectedDogId : undefined,
+        dogName: !selectedDogId || selectedDogId === "new" ? form.dogName.trim() : undefined,
+        hasMedicalIssue: form.hasMedicalIssue,
+        medicalDetails: form.medicalDetails,
+        hasBehavioralIssue: form.hasBehavioralIssue,
+        behavioralDetails: form.behavioralDetails,
+        agreedToTerms: form.coatResponsibility,
+        signatureData,
+      };
+      const res = await fetch("/api/consents", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "אירעה שגיאה בשליחת הטופס. נסו שוב.");
+      setSuccess(true);
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : "אירעה שגיאה בשליחת הטופס. נסו שוב.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (success) {
+    return (
+      <div className="mx-auto w-full max-w-md px-5 py-8">
+        <CheckInSuccess
+          dogName={existingDogs.find((d) => d.id === selectedDogId)?.name ?? form.dogName}
+          onDone={resetForm}
+          onSecondary={variant === "manual" ? onRequestExit : undefined}
+          secondaryLabel={variant === "manual" ? "חזרה ללוח הבקרה" : undefined}
+        />
+      </div>
+    );
+  }
+
+  const inputClass =
+    "w-full rounded-xl border border-slate-300 px-4 py-3 text-lg focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-200";
+
+  return (
+    <div className="mx-auto w-full max-w-md space-y-8 px-5 py-8">
+      <div>
+        <h1 className="text-2xl font-bold text-brand-900">תיאום ציפיות ואישור טיפול</h1>
+        <p className="mt-1 text-slate-500">אנא מלאו את הפרטים הבאים לפני תחילת הטיפול.</p>
+      </div>
+
+      {/* Basic info */}
+      <section className="space-y-4">
+        <div>
+          <label htmlFor="phone" className="mb-1 block text-sm font-medium text-slate-700">
+            מספר טלפון
+          </label>
+          <input
+            id="phone"
+            type="tel"
+            inputMode="tel"
+            dir="ltr"
+            placeholder="050-1234567"
+            value={form.phone}
+            onChange={(e) => update("phone", e.target.value)}
+            className={`${inputClass} text-left`}
+          />
+        </div>
+
+        <div>
+          <label htmlFor="fullName" className="mb-1 block text-sm font-medium text-slate-700">
+            שם הלקוח/ה
+          </label>
+          <input
+            id="fullName"
+            value={form.fullName}
+            onChange={(e) => {
+              setNameWasAutofilled(false);
+              update("fullName", e.target.value);
+            }}
+            className={inputClass}
+          />
+        </div>
+
+        {existingDogs.length > 0 ? (
+          <div>
+            <p className="mb-2 text-sm font-medium text-slate-700">בחר/י כלב</p>
+            <div className="flex flex-wrap gap-2">
+              {existingDogs.map((dog) => (
+                <button
+                  key={dog.id}
+                  type="button"
+                  onClick={() => setSelectedDogId(dog.id)}
+                  className={`rounded-xl border-2 px-4 py-2 font-semibold transition-colors ${
+                    selectedDogId === dog.id
+                      ? "border-brand-500 bg-brand-50 text-brand-700"
+                      : "border-slate-200 bg-white text-slate-600 active:bg-slate-50"
+                  }`}
+                >
+                  {dog.name}
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={() => setSelectedDogId("new")}
+                className={`rounded-xl border-2 px-4 py-2 font-semibold transition-colors ${
+                  selectedDogId === "new"
+                    ? "border-brand-500 bg-brand-50 text-brand-700"
+                    : "border-slate-200 bg-white text-slate-600 active:bg-slate-50"
+                }`}
+              >
+                + כלב חדש
+              </button>
+            </div>
+            {selectedDogId === "new" && (
+              <input
+                autoFocus
+                placeholder="שם הכלב החדש"
+                value={form.dogName}
+                onChange={(e) => update("dogName", e.target.value)}
+                className={`${inputClass} mt-3`}
+              />
+            )}
+          </div>
+        ) : (
+          <div>
+            <label htmlFor="dogName" className="mb-1 block text-sm font-medium text-slate-700">
+              שם הכלב
+            </label>
+            <input
+              id="dogName"
+              value={form.dogName}
+              onChange={(e) => update("dogName", e.target.value)}
+              className={inputClass}
+            />
+          </div>
+        )}
+
+        <div>
+          <label htmlFor="date" className="mb-1 block text-sm font-medium text-slate-700">
+            תאריך
+          </label>
+          <input
+            id="date"
+            type="date"
+            dir="ltr"
+            value={form.date}
+            onChange={(e) => update("date", e.target.value)}
+            className={`${inputClass} text-left`}
+          />
+        </div>
+      </section>
+
+      {/* Health & behavior questionnaire */}
+      <section className="space-y-3 border-t border-slate-200 pt-6">
+        <h2 className="text-lg font-bold text-brand-900">שאלון בריאותי והתנהגותי</h2>
+
+        <CheckboxRow label="הכלב בריא ואינו מקבל תרופות." checked={form.isHealthy} onChange={setHealthy} />
+
+        <CheckboxRow
+          label="קיימת מחלה / בעיה רפואית / תרופות / אלרגיה / רגישות."
+          checked={form.hasMedicalIssue}
+          onChange={setHasMedicalIssue}
+        />
+        {form.hasMedicalIssue && (
+          <textarea
+            autoFocus
+            placeholder="פירוט:"
+            value={form.medicalDetails}
+            onChange={(e) => update("medicalDetails", e.target.value)}
+            rows={3}
+            className={inputClass}
+          />
+        )}
+
+        <CheckboxRow
+          label="הכלב רגיש או אינו רגיל לפעולה מסוימת במהלך הטיפול."
+          checked={form.hasBehavioralIssue}
+          onChange={setHasBehavioralIssue}
+        />
+        {form.hasBehavioralIssue && (
+          <textarea
+            autoFocus
+            placeholder="פירוט:"
+            value={form.behavioralDetails}
+            onChange={(e) => update("behavioralDetails", e.target.value)}
+            rows={3}
+            className={inputClass}
+          />
+        )}
+
+        <div className="space-y-3 pt-2">
+          <CheckboxRow
+            label="עדכנתי את הספר/ית בכל מידע רפואי או התנהגותי רלוונטי."
+            checked={form.infoShared}
+            onChange={(v) => update("infoShared", v)}
+            required
+          />
+          <CheckboxRow
+            label="בוצע תיאום ציפיות לגבי התספורת והתוצאה הרצויה."
+            checked={form.expectationsSet}
+            onChange={(v) => update("expectationsSet", v)}
+            required
+          />
+        </div>
+      </section>
+
+      {/* Coat responsibility */}
+      <section className="space-y-3 border-t border-slate-200 pt-6">
+        <h2 className="text-lg font-bold text-brand-900">אחריות על תוצאת התספורת</h2>
+        <CheckboxRow
+          label="אני מאשר/ת כי תוצאת התספורת תלויה במצב הפרווה ובקשרים עימם הגיע הכלב, ואני לוקח/ת אחריות מלאה על התוצאה בהתאם למצב הפרווה בעת הגעתו."
+          checked={form.coatResponsibility}
+          onChange={(v) => update("coatResponsibility", v)}
+          required
+        />
+      </section>
+
+      {/* Final signature */}
+      <section className="space-y-4 border-t border-slate-200 pt-6">
+        <h2 className="text-lg font-bold text-brand-900">אישור המשך טיפול</h2>
+        <p className="text-sm text-slate-600">קראתי, הבנתי ואני מסכים/ה להמשך הטיפול בהתאם לתיאום הציפיות.</p>
+
+        <div className="flex items-center justify-between rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
+          <span>
+            <span className="font-medium text-slate-800">שם: </span>
+            {form.fullName || "—"}
+          </span>
+          <span>
+            <span className="font-medium text-slate-800">תאריך: </span>
+            {form.date}
+          </span>
+        </div>
+
+        <div>
+          <p className="mb-2 text-sm font-medium text-slate-700">חתימה</p>
+          <SignaturePad ref={padRef} onChange={setSignatureData} />
+        </div>
+      </section>
+
+      {submitError && <p className="text-sm text-red-600">{submitError}</p>}
+
+      <Button disabled={!canSubmit} onClick={handleSubmit}>
+        {submitting ? "שולח…" : "אישור וסיום"}
+      </Button>
+    </div>
+  );
+}
