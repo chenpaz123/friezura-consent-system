@@ -67,7 +67,9 @@ export async function POST(req: NextRequest) {
       customer_phone: phone,
       dog_id: dogId,
       has_medical_issue: payload.hasMedicalIssue,
-      medical_details: payload.hasMedicalIssue ? payload.medicalDetails?.trim() || null : null,
+      // The client always sends a meaningful value now (the typed complaint,
+      // or "בריא" when the dog is healthy), so just store it as-is.
+      medical_details: payload.medicalDetails?.trim() || null,
       has_behavioral_issue: payload.hasBehavioralIssue,
       behavioral_details: payload.hasBehavioralIssue ? payload.behavioralDetails?.trim() || null : null,
       agreed_to_terms: payload.agreedToTerms,

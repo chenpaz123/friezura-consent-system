@@ -28,13 +28,12 @@ const emptyForm = () => ({
   infoShared: false,
   expectationsSet: false,
   ageAndOwnershipConfirmed: false,
-  coatResponsibility: false,
 });
 
 /**
  * The Friezura client consent form — one continuous, mobile-first Hebrew
- * page covering: identifying info, the health/behavior questionnaire, the
- * coat-condition responsibility waiver, and the final signature.
+ * page covering: identifying info, the health/behavior questionnaire and
+ * required declarations, and the final signature.
  */
 export function FriezuraConsentForm({ variant = "kiosk", onRequestExit }: FriezuraConsentFormProps) {
   const [form, setForm] = useState(emptyForm());
@@ -123,7 +122,6 @@ export function FriezuraConsentForm({ variant = "kiosk", onRequestExit }: Friezu
     form.infoShared &&
     form.expectationsSet &&
     form.ageAndOwnershipConfirmed &&
-    form.coatResponsibility &&
     !!signatureData &&
     !submitting;
 
@@ -149,10 +147,15 @@ export function FriezuraConsentForm({ variant = "kiosk", onRequestExit }: Friezu
         dogId: selectedDogId && selectedDogId !== "new" ? selectedDogId : undefined,
         dogName: !selectedDogId || selectedDogId === "new" ? form.dogName.trim() : undefined,
         hasMedicalIssue: form.hasMedicalIssue,
-        medicalDetails: form.medicalDetails,
+        // Always send something meaningful: the typed complaint when there's
+        // an issue, or an explicit "בריא" when checkbox (a) is checked — so
+        // medical_details is never blank for a healthy dog in the DB/admin view.
+        medicalDetails: form.hasMedicalIssue ? form.medicalDetails.trim() : "בריא",
         hasBehavioralIssue: form.hasBehavioralIssue,
         behavioralDetails: form.behavioralDetails,
-        agreedToTerms: form.coatResponsibility,
+        // Checkbox (e) now carries the coat-condition/cooperation acknowledgment
+        // that used to be a separate waiver, so it's what agreed_to_terms maps to.
+        agreedToTerms: form.expectationsSet,
         signatureData,
       };
       const res = await fetch("/api/consents", {
@@ -339,7 +342,7 @@ export function FriezuraConsentForm({ variant = "kiosk", onRequestExit }: Friezu
             required
           />
           <CheckboxRow
-            label="בוצע תיאום ציפיות לגבי התספורת והתוצאה הרצויה."
+            label="בוצע תיאום ציפיות לגבי התספורת והתוצאה הרצויה, והבנתי כי מצב הפרווה ושיתוף הפעולה של הכלב עשויים להשפיע על התוצאה."
             checked={form.expectationsSet}
             onChange={(v) => update("expectationsSet", v)}
             required
@@ -351,17 +354,6 @@ export function FriezuraConsentForm({ variant = "kiosk", onRequestExit }: Friezu
             required
           />
         </div>
-      </section>
-
-      {/* Coat responsibility */}
-      <section className="space-y-3 border-t border-slate-200 pt-6">
-        <h2 className="text-lg font-bold text-brand-900">אחריות על תוצאת התספורת</h2>
-        <CheckboxRow
-          label="אני מאשר/ת כי תוצאת התספורת תלויה במצב הפרווה ובקשרים עימם הגיע הכלב, ואני לוקח/ת אחריות מלאה על התוצאה בהתאם למצב הפרווה בעת הגעתו."
-          checked={form.coatResponsibility}
-          onChange={(v) => update("coatResponsibility", v)}
-          required
-        />
       </section>
 
       {/* Final signature */}

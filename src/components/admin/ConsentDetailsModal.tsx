@@ -30,8 +30,8 @@ function InfoRow({ label, value, dir }: { label: string; value: string; dir?: "l
  * Full-detail readout for a single signed consent, opened by tapping a
  * ConsentCard in the Live Queue or Search tabs. Strictly RTL/Hebrew, and
  * shows everything captured on the client form: identifying info, the
- * health/behavior questionnaire answers (verbatim), the coat-condition
- * agreement, and the rendered signature.
+ * health/behavior questionnaire answers (verbatim), the expectations/coat
+ * acknowledgment, and the rendered signature.
  */
 export function ConsentDetailsModal({ consent, onClose, isSuperAdmin, onDeleted }: ConsentDetailsModalProps) {
   const [deleting, setDeleting] = useState(false);
@@ -115,8 +115,12 @@ export function ConsentDetailsModal({ consent, onClose, isSuperAdmin, onDeleted 
                 <p className="font-semibold">
                   {consent.has_medical_issue ? "⚠️ קיימת בעיה רפואית" : "✓ הכלב בריא ואינו מקבל תרופות"}
                 </p>
-                {consent.has_medical_issue && consent.medical_details && (
-                  <p className="mt-1 whitespace-pre-wrap text-red-900">{consent.medical_details}</p>
+                {consent.medical_details && (
+                  <p
+                    className={`mt-1 whitespace-pre-wrap ${consent.has_medical_issue ? "text-red-900" : "text-brand-900"}`}
+                  >
+                    {consent.medical_details}
+                  </p>
                 )}
               </div>
 
@@ -137,17 +141,17 @@ export function ConsentDetailsModal({ consent, onClose, isSuperAdmin, onDeleted 
             </div>
           </section>
 
-          {/* Coat responsibility */}
+          {/* Expectations & coat/cooperation acknowledgment */}
           <section>
-            <h3 className="mb-2 text-sm font-bold text-brand-900">אחריות על תוצאת התספורת</h3>
+            <h3 className="mb-2 text-sm font-bold text-brand-900">תיאום ציפיות ואחריות על התוצאה</h3>
             <div
               className={`rounded-xl px-4 py-3 text-sm font-semibold ${
                 consent.agreed_to_terms ? "bg-brand-50 text-brand-800" : "bg-red-50 text-red-800"
               }`}
             >
               {consent.agreed_to_terms
-                ? "✓ הלקוח/ה אישר/ה את תנאי האחריות על תוצאת התספורת בהתאם למצב הפרווה."
-                : "⚠️ תנאי האחריות על תוצאת התספורת לא אושרו."}
+                ? "✓ בוצע תיאום ציפיות לגבי התספורת, והלקוח/ה הבין/ה כי מצב הפרווה ושיתוף הפעולה של הכלב עשויים להשפיע על התוצאה."
+                : "⚠️ תיאום הציפיות לגבי התספורת לא אושר."}
             </div>
           </section>
 
