@@ -1,7 +1,7 @@
 {
   "name": "Friezura",
   "short_name": "Friezura",
-  "description": "לוח ניהול פריזורה — תור חי, חיפוש לקוחות והחתמה ידנית",
+  "description": "לוח ניהול פריזורה — מאגר לקוחות, חיפוש לקוחות והחתמה ידנית",
   "lang": "he",
   "dir": "rtl",
   "start_url": "/admin/queue",

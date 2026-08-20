@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const tabs = [
-  { href: "/admin/queue", label: "תורים להיום", icon: "📋" },
+  { href: "/admin/queue", label: "מאגר", icon: "📋" },
   { href: "/admin/search", label: "חיפוש לקוח", icon: "🔍" },
   { href: "/admin/manual", label: "החתמה ידנית", icon: "➕" },
 ] as const;
