@@ -11,9 +11,9 @@ import { clearSuperAdmin, markSuperAdmin } from "@/lib/adminSession";
  * Lets staff hand the device to a customer who can't scan the QR code.
  * Runs the exact same client check-in flow, but requires a staff PIN to
  * leave back to the dashboard so a customer can't wander into other tabs.
- * Accepts either the regular (1717) or super-admin (1301) PIN — whichever
- * is entered here also becomes the privilege level the dashboard returns
- * to, so re-entering 1717 correctly steps a super-admin session back down.
+ * Accepts either ADMIN_PIN or SUPER_ADMIN_PIN — whichever is entered here
+ * also becomes the privilege level the dashboard returns to, so re-entering
+ * the regular PIN correctly steps a super-admin session back down.
  */
 export default function ManualEntryPage() {
   const router = useRouter();

@@ -84,17 +84,19 @@ SUPABASE_SERVICE_ROLE_KEY=your-service-role-key   # server-only; required for th
 On Vercel, set the same variables in **Project Settings → Environment
 Variables** for Production/Preview/Development.
 
-Staff PINs are fixed constants in `src/lib/pins.ts`, not environment
-variables — change them there if they ever need to differ per environment:
+Staff PINs are fixed constants in `src/lib/pins.ts` (not printed here on
+purpose — see that file for the current values), not environment variables:
 
-- **`1717`** (`ADMIN_PIN`) — unlocks `/admin` normally.
-- **`1301`** (`SUPER_ADMIN_PIN`) — also unlocks `/admin`, but additionally
-  marks the session super-admin, which surfaces a "מחק רשומה" (delete)
-  button on a consent's detail view. It's undisclosed anywhere in the UI on
-  purpose. Neither PIN is a real security boundary (both are readable in the
-  client bundle) — they're a UX deterrent for a single-location internal
-  tool, so the delete Server Action independently re-checks the PIN
-  server-side rather than trusting client state.
+- **`ADMIN_PIN`** — unlocks `/admin` normally.
+- **`SUPER_ADMIN_PIN`** — also unlocks `/admin`, but additionally marks the
+  session super-admin, which surfaces a "מחק רשומה" (delete) button on a
+  consent's detail view. It's undisclosed anywhere in the UI on purpose.
+  Neither PIN is a real security boundary (both are readable in the client
+  bundle by anyone who opens DevTools on the deployed site) — they're a UX
+  deterrent for a single-location internal tool, so the delete Server Action
+  independently re-checks the PIN server-side rather than trusting client
+  state. Change the values in `src/lib/pins.ts` if they're ever suspected of
+  having leaked.
 
 ## Local development
 
@@ -146,9 +148,10 @@ The same component powers the admin's **Manual Entry** screen
 
 ## Notes on the admin dashboard
 
-- **Access tiers**: entering `1717` at `/admin` unlocks it normally; `1301`
-  also marks the session super-admin (`src/lib/adminSession.ts`,
-  sessionStorage-backed, scoped to the browser tab). A super-admin sees a
+- **Access tiers**: entering `ADMIN_PIN` at `/admin` unlocks it normally;
+  entering `SUPER_ADMIN_PIN` also marks the session super-admin
+  (`src/lib/adminSession.ts`, sessionStorage-backed, scoped to the browser
+  tab). See `src/lib/pins.ts` for the actual values. A super-admin sees a
   red "מחק רשומה" button at the bottom of `ConsentDetailsModal` — clicking
   it, after a native `confirm()`, calls the `deleteConsent` Server Action,
   which independently re-verifies the PIN and hard-deletes via the

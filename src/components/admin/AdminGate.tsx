@@ -12,9 +12,9 @@ const KIOSK_ROUTE = "/admin/manual";
 
 /**
  * Gates the entire /admin dashboard (Live Queue, Search, Manual Entry, and
- * any future sub-view) behind a staff PIN. The regular PIN (1717) unlocks
- * the dashboard normally; a second, undisclosed PIN (1301) also unlocks it
- * but additionally marks the session as super-admin, surfacing destructive
+ * any future sub-view) behind a staff PIN. ADMIN_PIN unlocks the dashboard
+ * normally; the undisclosed SUPER_ADMIN_PIN also unlocks it but additionally
+ * marks the session as super-admin, surfacing destructive
  * actions (e.g. deleting a consent) that are otherwise hidden. The unlock is
  * remembered for the browser tab's session so staff aren't re-prompted on
  * every navigation, but a fresh browser session (e.g. the salon tablet
