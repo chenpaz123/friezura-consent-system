@@ -1,17 +1,11 @@
 /**
- * Staff PIN constants, shared between client components (PinGate) and the
- * deleteConsent Server Action so both sides always agree on what counts as
- * valid — no duplicated magic strings, and the server independently
- * re-verifies the super-admin PIN rather than trusting client-side state.
+ * The actual staff PIN values are NOT here — they live only in the
+ * server-only ADMIN_PIN / SUPER_ADMIN_PIN environment variables (see
+ * .env.local.example) and are checked exclusively by the verifyPin Server
+ * Action (src/app/actions/verifyPin.ts), so they're never bundled into
+ * client-side JavaScript.
  *
- * Note: this app has no real auth/session backend, so these PINs are a UX
- * deterrent for a single-location internal tool, not a security boundary —
- * anyone can read them out of the client bundle. The Server Action's own
- * pin check exists to make sure a super-admin delete can't be triggered by
- * calling the action directly with no credentials at all, not to make the
- * PIN itself secret.
+ * PIN_LENGTH is just a UI constant — how many digits the pad collects
+ * before submitting for verification — not sensitive on its own.
  */
-export const ADMIN_PIN = "1717";
-
-/** Grants isSuperAdmin (destructive actions like deleting a consent). Not shown anywhere in the UI. */
-export const SUPER_ADMIN_PIN = "1301";
+export const PIN_LENGTH = 4;

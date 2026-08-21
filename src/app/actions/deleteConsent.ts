@@ -1,7 +1,6 @@
 "use server";
 
 import { createClient } from "@supabase/supabase-js";
-import { SUPER_ADMIN_PIN } from "@/lib/pins";
 
 export interface DeleteConsentResult {
   success: boolean;
@@ -17,12 +16,15 @@ export interface DeleteConsentResult {
  *
  * This is called from a client component, so it cannot trust that the
  * caller only invokes it when the UI's isSuperAdmin flag is set (that's
- * just client-side state, not real auth) — it independently re-checks the
- * pin against the same SUPER_ADMIN_PIN constant the client PIN gate uses,
- * so hitting this action directly with no valid pin does nothing.
+ * just client-side state, not real auth) — it independently re-checks `pin`
+ * against the server-only SUPER_ADMIN_PIN env var, so hitting this action
+ * directly with no valid pin does nothing. The UI collects that pin fresh
+ * at the moment of deletion (via PinGate) rather than remembering one from
+ * earlier in the session.
  */
 export async function deleteConsent(id: string, pin: string): Promise<DeleteConsentResult> {
-  if (pin !== SUPER_ADMIN_PIN) {
+  const superAdminPin = process.env.SUPER_ADMIN_PIN;
+  if (!superAdminPin || pin !== superAdminPin) {
     return { success: false, error: "אין הרשאה לפעולה זו." };
   }
   if (!id) {

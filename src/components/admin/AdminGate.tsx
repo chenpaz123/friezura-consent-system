@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { BottomNav } from "@/components/admin/BottomNav";
 import { PinGate } from "@/components/admin/PinGate";
-import { ADMIN_PIN, SUPER_ADMIN_PIN } from "@/lib/pins";
 import { clearAdminSession, isAdminUnlocked, markAdminUnlocked, markSuperAdmin } from "@/lib/adminSession";
 
 /** A customer holding the device on this route must not be able to reach the rest of the dashboard. */
@@ -49,12 +48,11 @@ export function AdminGate({ children }: { children: React.ReactNode }) {
   if (!unlocked) {
     return (
       <PinGate
-        pins={[ADMIN_PIN, SUPER_ADMIN_PIN]}
         variant="screen"
         title="הזינו קוד גישה ללוח הניהול"
-        onSuccess={(matchedPin) => {
+        onSuccess={({ isSuperAdmin }) => {
           markAdminUnlocked();
-          if (matchedPin === SUPER_ADMIN_PIN) markSuperAdmin();
+          if (isSuperAdmin) markSuperAdmin();
           setUnlocked(true);
         }}
         onCancel={() => router.push("/")}

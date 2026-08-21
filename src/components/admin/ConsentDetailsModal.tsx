@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { deleteConsent } from "@/app/actions/deleteConsent";
+import { PinGate, type PinGateSuccess } from "@/components/admin/PinGate";
 import { formatIsraeliDate, formatIsraeliTime } from "@/lib/date";
-import { SUPER_ADMIN_PIN } from "@/lib/pins";
 import type { ConsentWithRelations } from "@/lib/types";
 
 interface ConsentDetailsModalProps {
@@ -36,6 +36,7 @@ function InfoRow({ label, value, dir }: { label: string; value: string; dir?: "l
 export function ConsentDetailsModal({ consent, onClose, isSuperAdmin, onDeleted }: ConsentDetailsModalProps) {
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [confirmingPin, setConfirmingPin] = useState(false);
 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
@@ -47,11 +48,19 @@ export function ConsentDetailsModal({ consent, onClose, isSuperAdmin, onDeleted 
 
   const createdAt = new Date(consent.created_at);
 
-  const handleDelete = async () => {
+  const handleDeleteClick = () => {
     if (!window.confirm("האם אתה בטוח שברצונך למחוק רשומה זו לצמיתות?")) return;
-    setDeleting(true);
     setDeleteError(null);
-    const result = await deleteConsent(consent.id, SUPER_ADMIN_PIN);
+    setConfirmingPin(true);
+  };
+
+  // The pin isn't remembered from earlier in the session — it's collected
+  // fresh right here and forwarded once to deleteConsent, which is the only
+  // place that actually knows what a correct pin looks like.
+  const handlePinConfirmed = async ({ pin }: PinGateSuccess) => {
+    setConfirmingPin(false);
+    setDeleting(true);
+    const result = await deleteConsent(consent.id, pin);
     if (result.success) {
       onDeleted?.(consent.id);
     } else {
@@ -61,6 +70,7 @@ export function ConsentDetailsModal({ consent, onClose, isSuperAdmin, onDeleted 
   };
 
   return (
+    <>
     <div
       dir="rtl"
       // m-0 guards against a sibling `space-y-*`/`space-x-*` wrapper adding a
@@ -173,7 +183,7 @@ export function ConsentDetailsModal({ consent, onClose, isSuperAdmin, onDeleted 
               {deleteError && <p className="text-sm text-red-600">{deleteError}</p>}
               <button
                 type="button"
-                onClick={handleDelete}
+                onClick={handleDeleteClick}
                 disabled={deleting}
                 className="w-full rounded-xl bg-red-600 px-4 py-3 font-semibold text-white shadow-sm active:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
               >
@@ -194,5 +204,14 @@ export function ConsentDetailsModal({ consent, onClose, isSuperAdmin, onDeleted 
         </div>
       </div>
     </div>
+
+    {confirmingPin && (
+      <PinGate
+        title="אימות קוד למחיקת הרשומה"
+        onSuccess={handlePinConfirmed}
+        onCancel={() => setConfirmingPin(false)}
+      />
+    )}
+    </>
   );
 }

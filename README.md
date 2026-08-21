@@ -15,7 +15,7 @@ for a dog grooming salon. Two apps in one Next.js project:
 ## Tech stack
 
 - **Next.js 14** (App Router, TypeScript, Tailwind CSS) — Route Handlers and
-  a Server Action
+  Server Actions
 - **Supabase** (Postgres + Realtime) for data and live updates
 - **Vercel** for serverless hosting
 
@@ -28,6 +28,7 @@ src/
     consent/page.tsx             Client QR check-in entry point
     actions/
       deleteConsent.ts           Server Action — super-admin-only hard delete (service_role key)
+      verifyPin.ts               Server Action — the only place ADMIN_PIN/SUPER_ADMIN_PIN are ever compared
     admin/
       layout.tsx                 Server Component: owns the /admin-only PWA manifest metadata
       page.tsx                   Redirects /admin -> /admin/queue
@@ -44,7 +45,7 @@ src/
   lib/
     supabase/client.ts           Browser Supabase client (anon key)
     supabase/server.ts           Server-only Supabase client (service role key)
-    pins.ts                      Shared ADMIN_PIN / SUPER_ADMIN_PIN constants
+    pins.ts                      PIN_LENGTH UI constant only — no PIN values live in source
     adminSession.ts              sessionStorage helpers for the admin unlock + super-admin flag
     date.ts                      DD/MM/YYYY-only date helpers (no locale-dependent native <input type="date">)
     types.ts                     Shared TypeScript types
@@ -79,24 +80,33 @@ Copy `.env.local.example` to `.env.local` and fill in:
 NEXT_PUBLIC_SUPABASE_URL=https://your-project-ref.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-public-key
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key   # server-only; required for the super-admin delete action
+ADMIN_PIN=choose-a-4-digit-staff-pin
+SUPER_ADMIN_PIN=choose-a-different-4-digit-pin
 ```
 
 On Vercel, set the same variables in **Project Settings → Environment
-Variables** for Production/Preview/Development.
+Variables** for Production/Preview/Development. Pick your own real PIN
+values in both places — don't reuse whatever's in `.env.local.example` or
+any value that's ever appeared in this repo's git history.
 
-Staff PINs are fixed constants in `src/lib/pins.ts` (not printed here on
-purpose — see that file for the current values), not environment variables:
+**PINs are server-only** (`ADMIN_PIN` / `SUPER_ADMIN_PIN`, deliberately *not*
+`NEXT_PUBLIC_*`), so they're never bundled into client-side JavaScript —
+unlike a hardcoded constant, they can't be read out of the deployed site by
+inspecting DevTools/Network. The only place they're ever compared is the
+`verifyPin` Server Action (`src/app/actions/verifyPin.ts`); `PinGate.tsx`
+just collects digits and calls it, then only ever learns pass/fail plus
+which tier matched — never the values themselves.
 
 - **`ADMIN_PIN`** — unlocks `/admin` normally.
 - **`SUPER_ADMIN_PIN`** — also unlocks `/admin`, but additionally marks the
   session super-admin, which surfaces a "מחק רשומה" (delete) button on a
   consent's detail view. It's undisclosed anywhere in the UI on purpose.
-  Neither PIN is a real security boundary (both are readable in the client
-  bundle by anyone who opens DevTools on the deployed site) — they're a UX
-  deterrent for a single-location internal tool, so the delete Server Action
-  independently re-checks the PIN server-side rather than trusting client
-  state. Change the values in `src/lib/pins.ts` if they're ever suspected of
-  having leaked.
+  Deleting re-collects the PIN on the spot (via `PinGate`) rather than
+  reusing one remembered from earlier in the session, and `deleteConsent`
+  independently re-verifies it server-side too — so the action can't be
+  triggered by calling it directly with no credentials, and a stale
+  in-browser "I'm super-admin" flag alone is never enough to delete
+  anything.
 
 ## Local development
 
@@ -151,11 +161,12 @@ The same component powers the admin's **Manual Entry** screen
 - **Access tiers**: entering `ADMIN_PIN` at `/admin` unlocks it normally;
   entering `SUPER_ADMIN_PIN` also marks the session super-admin
   (`src/lib/adminSession.ts`, sessionStorage-backed, scoped to the browser
-  tab). See `src/lib/pins.ts` for the actual values. A super-admin sees a
-  red "מחק רשומה" button at the bottom of `ConsentDetailsModal` — clicking
-  it, after a native `confirm()`, calls the `deleteConsent` Server Action,
-  which independently re-verifies the PIN and hard-deletes via the
-  service_role key.
+  tab). See the Environment variables section above for where the real
+  values live. A super-admin sees a red "מחק רשומה" button at the bottom of
+  `ConsentDetailsModal` — clicking it, after a native `confirm()`, prompts
+  for the PIN again on the spot (a `PinGate`, not a remembered value), then
+  calls the `deleteConsent` Server Action, which independently re-verifies
+  that PIN and hard-deletes via the service_role key.
 - **Registry & filtering**: `LiveQueue.tsx` (rendered at `/admin/queue`) is a
   realtime, filterable customer registry — chips for today / last 7 days /
   last 30 days / all — that re-queries and re-subscribes to Realtime on
