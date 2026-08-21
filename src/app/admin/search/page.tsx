@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { ConsentCard } from "@/components/admin/ConsentCard";
 import { ConsentDetailsModal } from "@/components/admin/ConsentDetailsModal";
-import { useIsSuperAdmin } from "@/lib/useIsSuperAdmin";
+import { useIsSuperAdmin } from "@/lib/adminSession";
 import type { ConsentWithRelations } from "@/lib/types";
 
 const RESULT_LIMIT = 25;

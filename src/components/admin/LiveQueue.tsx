@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { ConsentCard } from "@/components/admin/ConsentCard";
 import { ConsentDetailsModal } from "@/components/admin/ConsentDetailsModal";
-import { useIsSuperAdmin } from "@/lib/useIsSuperAdmin";
+import { useIsSuperAdmin } from "@/lib/adminSession";
 import type { ConsentWithRelations } from "@/lib/types";
 
 const CONSENT_SELECT = "*, customers ( full_name, phone_number ), dogs ( name )";

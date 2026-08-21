@@ -4,11 +4,16 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { FriezuraConsentForm } from "@/components/client/FriezuraConsentForm";
 import { PinGate } from "@/components/admin/PinGate";
+import { ADMIN_PIN, SUPER_ADMIN_PIN } from "@/lib/pins";
+import { clearSuperAdmin, markSuperAdmin } from "@/lib/adminSession";
 
 /**
  * Lets staff hand the device to a customer who can't scan the QR code.
  * Runs the exact same client check-in flow, but requires a staff PIN to
  * leave back to the dashboard so a customer can't wander into other tabs.
+ * Accepts either the regular (1717) or super-admin (1301) PIN — whichever
+ * is entered here also becomes the privilege level the dashboard returns
+ * to, so re-entering 1717 correctly steps a super-admin session back down.
  */
 export default function ManualEntryPage() {
   const router = useRouter();
@@ -33,7 +38,15 @@ export default function ManualEntryPage() {
       <FriezuraConsentForm variant="manual" onRequestExit={() => setPinOpen(true)} />
 
       {pinOpen && (
-        <PinGate onSuccess={() => router.push("/admin/queue")} onCancel={() => setPinOpen(false)} />
+        <PinGate
+          pins={[ADMIN_PIN, SUPER_ADMIN_PIN]}
+          onSuccess={(matchedPin) => {
+            if (matchedPin === SUPER_ADMIN_PIN) markSuperAdmin();
+            else clearSuperAdmin();
+            router.push("/admin/queue");
+          }}
+          onCancel={() => setPinOpen(false)}
+        />
       )}
     </div>
   );

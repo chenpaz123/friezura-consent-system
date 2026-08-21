@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { BottomNav } from "@/components/admin/BottomNav";
 import { PinGate } from "@/components/admin/PinGate";
 import { ADMIN_PIN, SUPER_ADMIN_PIN } from "@/lib/pins";
-import { markSuperAdmin } from "@/lib/useIsSuperAdmin";
+import { clearAdminSession, isAdminUnlocked, markAdminUnlocked, markSuperAdmin } from "@/lib/adminSession";
 
-const SESSION_KEY = "friezura_admin_unlocked";
+/** A customer holding the device on this route must not be able to reach the rest of the dashboard. */
+const KIOSK_ROUTE = "/admin/manual";
 
 /**
  * Gates the entire /admin dashboard (Live Queue, Search, Manual Entry, and
@@ -26,13 +27,20 @@ const SESSION_KEY = "friezura_admin_unlocked";
  */
 export function AdminGate({ children }: { children: React.ReactNode }) {
   const router = useRouter();
+  const pathname = usePathname();
   const [unlocked, setUnlocked] = useState(false);
   const [checked, setChecked] = useState(false);
 
   useEffect(() => {
-    setUnlocked(sessionStorage.getItem(SESSION_KEY) === "true");
+    setUnlocked(isAdminUnlocked());
     setChecked(true);
   }, []);
+
+  const handleLogout = () => {
+    clearAdminSession();
+    setUnlocked(false);
+    router.push("/admin");
+  };
 
   if (!checked) {
     return <div className="min-h-screen bg-pink-50" />;
@@ -45,7 +53,7 @@ export function AdminGate({ children }: { children: React.ReactNode }) {
         variant="screen"
         title="הזינו קוד גישה ללוח הניהול"
         onSuccess={(matchedPin) => {
-          sessionStorage.setItem(SESSION_KEY, "true");
+          markAdminUnlocked();
           if (matchedPin === SUPER_ADMIN_PIN) markSuperAdmin();
           setUnlocked(true);
         }}
@@ -54,14 +62,27 @@ export function AdminGate({ children }: { children: React.ReactNode }) {
     );
   }
 
+  // Kiosk mode: a customer may be holding the device here to sign, so the
+  // bottom nav (Queue / Search / Manual Entry) must not be reachable — it's
+  // the only thing standing between them and every other client's data.
+  const isKiosk = pathname === KIOSK_ROUTE;
+
   return (
-    <div className="min-h-screen bg-pink-50 pb-20">
-      <header className="sticky top-0 z-10 flex items-center justify-center border-b border-pink-200 bg-white/95 px-4 py-2.5 backdrop-blur">
+    <div className={`min-h-screen bg-pink-50 ${isKiosk ? "" : "pb-20"}`}>
+      <header className="sticky top-0 z-10 flex items-center justify-between border-b border-pink-200 bg-white/95 px-4 py-2.5 backdrop-blur">
+        <div className="w-14" aria-hidden="true" />
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/logo.jpg" alt="Friezura" className="h-9 w-auto" />
+        <button
+          type="button"
+          onClick={handleLogout}
+          className="w-14 text-xs font-medium text-slate-400 active:text-slate-600"
+        >
+          יציאה
+        </button>
       </header>
       {children}
-      <BottomNav />
+      {!isKiosk && <BottomNav />}
     </div>
   );
 }
