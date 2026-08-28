@@ -79,6 +79,14 @@ export function LiveQueue() {
 
     load();
 
+    return () => {
+      cancelled = true;
+    };
+  }, [filter]);
+
+  useEffect(() => {
+    const cutoff = cutoffForFilter(filter);
+
     const channel = supabaseBrowser
       .channel(`consents-registry-${filter}`)
       .on(
@@ -113,8 +121,8 @@ export function LiveQueue() {
       .subscribe((status) => setConnected(status === "SUBSCRIBED"));
 
     return () => {
-      cancelled = true;
       supabaseBrowser.removeChannel(channel);
+      setConnected(false);
     };
   }, [filter]);
 
