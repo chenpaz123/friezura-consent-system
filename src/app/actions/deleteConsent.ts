@@ -1,6 +1,8 @@
 "use server";
 
 import { createClient } from "@supabase/supabase-js";
+import { headers } from "next/headers";
+import { isRateLimited, incrementRateLimit, resetRateLimit } from "@/lib/rateLimit";
 
 export interface DeleteConsentResult {
   success: boolean;
@@ -23,10 +25,22 @@ export interface DeleteConsentResult {
  * earlier in the session.
  */
 export async function deleteConsent(id: string, pin: string): Promise<DeleteConsentResult> {
+  const headersList = headers();
+  const rawIp = headersList.get("x-forwarded-for") ?? "unknown";
+  const ip = rawIp.split(',')[0].trim();
+
+  if (isRateLimited(ip)) {
+    return { success: false, error: "יותר מדי ניסיונות. נסו שוב מאוחר יותר." };
+  }
+
   const superAdminPin = process.env.SUPER_ADMIN_PIN;
   if (!superAdminPin || pin !== superAdminPin) {
+    incrementRateLimit(ip);
     return { success: false, error: "אין הרשאה לפעולה זו." };
   }
+
+  resetRateLimit(ip);
+
   if (!id) {
     return { success: false, error: "מזהה רשומה חסר." };
   }

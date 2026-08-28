@@ -1,8 +1,12 @@
 "use server";
 
+import { headers } from "next/headers";
+import { isRateLimited, incrementRateLimit, resetRateLimit } from "@/lib/rateLimit";
+
 export interface VerifyPinResult {
   valid: boolean;
   isSuperAdmin: boolean;
+  rateLimited?: boolean;
 }
 
 /**
@@ -14,11 +18,32 @@ export interface VerifyPinResult {
  * which tier matched, never the values themselves.
  */
 export async function verifyPin(pin: string): Promise<VerifyPinResult> {
+  const headersList = headers();
+  const rawIp = headersList.get("x-forwarded-for") ?? "unknown";
+  const ip = rawIp.split(',')[0].trim();
+
+  if (isRateLimited(ip)) {
+    return { valid: false, isSuperAdmin: false, rateLimited: true };
+  }
+
   const adminPin = process.env.ADMIN_PIN;
   const superAdminPin = process.env.SUPER_ADMIN_PIN;
 
-  if (!pin) return { valid: false, isSuperAdmin: false };
-  if (superAdminPin && pin === superAdminPin) return { valid: true, isSuperAdmin: true };
-  if (adminPin && pin === adminPin) return { valid: true, isSuperAdmin: false };
+  if (!pin) {
+    incrementRateLimit(ip);
+    return { valid: false, isSuperAdmin: false };
+  }
+
+  if (superAdminPin && pin === superAdminPin) {
+    resetRateLimit(ip);
+    return { valid: true, isSuperAdmin: true };
+  }
+
+  if (adminPin && pin === adminPin) {
+    resetRateLimit(ip);
+    return { valid: true, isSuperAdmin: false };
+  }
+
+  incrementRateLimit(ip);
   return { valid: false, isSuperAdmin: false };
 }

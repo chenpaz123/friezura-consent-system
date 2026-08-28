@@ -54,6 +54,14 @@ export function PinGate({
 
     verifyPin(entered).then((result) => {
       if (cancelled) return;
+
+      if (result.rateLimited) {
+        alert("יותר מדי ניסיונות. נסו שוב בעוד 15 דקות.");
+        setEntered("");
+        setVerifying(false);
+        return;
+      }
+
       if (result.valid) {
         onSuccess({ pin: entered, isSuperAdmin: result.isSuperAdmin });
       } else {
