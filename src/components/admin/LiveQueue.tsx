@@ -2,13 +2,12 @@
 
 import { useEffect, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase/client";
+import { getConsents, getConsentById } from "@/app/actions/adminData";
 import { ConsentCard } from "@/components/admin/ConsentCard";
 import { ConsentDetailsModal } from "@/components/admin/ConsentDetailsModal";
 import { useIsSuperAdmin } from "@/lib/adminSession";
 import type { ConsentWithRelations } from "@/lib/types";
 
-const CONSENT_SELECT = "*, customers ( full_name, phone_number ), dogs ( name )";
-const RESULT_LIMIT = 500;
 
 const TIME_FILTERS = [
   { id: "today", label: "היום" },
@@ -58,56 +57,53 @@ export function LiveQueue() {
 
     async function load() {
       setLoading(true);
-      let query = supabaseBrowser
-        .from("consents")
-        .select(CONSENT_SELECT)
-        .order("created_at", { ascending: false })
-        .limit(RESULT_LIMIT);
-      if (cutoff) query = query.gte("created_at", cutoff);
-
-      const { data, error: fetchError } = await query;
-
-      if (cancelled) return;
-      if (fetchError) {
-        setError(fetchError.message);
-      } else {
+      try {
+        const data = await getConsents(cutoff);
+        if (cancelled) return;
         setError(null);
-        setConsents((data ?? []) as unknown as ConsentWithRelations[]);
+        setConsents(data);
+      } catch (fetchError: any) {
+        if (cancelled) return;
+        setError(fetchError.message);
       }
-      setLoading(false);
+      if (!cancelled) setLoading(false);
     }
 
     load();
 
     const channel = supabaseBrowser
-      .channel(`consents-registry-${filter}`)
+      .channel(`admin-events-${filter}`)
       .on(
         "postgres_changes",
-        { event: "INSERT", schema: "public", table: "consents" },
+        { event: "INSERT", schema: "public", table: "admin_events" },
         async (payload) => {
-          const newRow = payload.new as { id: string; created_at: string };
+          const newRow = payload.new as { event_type: string; consent_id: string; created_at: string };
+          if (newRow.event_type !== 'INSERT') return;
           // Only surface it live if it actually falls within the active filter.
           if (cutoff && newRow.created_at < cutoff) return;
 
-          const { data } = await supabaseBrowser
-            .from("consents")
-            .select(CONSENT_SELECT)
-            .eq("id", newRow.id)
-            .single();
-
-          if (data) {
-            setConsents((prev) => [data as unknown as ConsentWithRelations, ...prev]);
+          try {
+            const data = await getConsentById(newRow.consent_id);
+            if (data) {
+              setConsents((prev) => {
+                // Prevent duplicates if already fetched or via multiple tabs
+                if (prev.some(c => c.id === data.id)) return prev;
+                return [data, ...prev].sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
+              });
+            }
+          } catch (err) {
+            console.error("Failed to fetch new consent:", err);
           }
         }
       )
       .on(
         "postgres_changes",
-        { event: "DELETE", schema: "public", table: "consents" },
+        { event: "INSERT", schema: "public", table: "admin_events" },
         (payload) => {
-          // Keeps every open admin tab in sync when a super-admin deletes a
-          // test entry elsewhere, not just the tab that performed the delete.
-          const oldRow = payload.old as { id: string };
-          setConsents((prev) => prev.filter((c) => c.id !== oldRow.id));
+          const newRow = payload.new as { event_type: string; consent_id: string; created_at: string };
+          if (newRow.event_type !== 'DELETE') return;
+
+          setConsents((prev) => prev.filter((c) => c.id !== newRow.consent_id));
         }
       )
       .subscribe((status) => setConnected(status === "SUBSCRIBED"));

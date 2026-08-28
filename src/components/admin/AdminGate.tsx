@@ -5,6 +5,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { BottomNav } from "@/components/admin/BottomNav";
 import { PinGate } from "@/components/admin/PinGate";
 import { clearAdminSession, isAdminUnlocked, markAdminUnlocked, markSuperAdmin } from "@/lib/adminSession";
+import { logoutAdmin } from "@/app/actions/logoutAdmin";
 
 /** A customer holding the device on this route must not be able to reach the rest of the dashboard. */
 const KIOSK_ROUTE = "/admin/manual";
@@ -35,7 +36,8 @@ export function AdminGate({ children }: { children: React.ReactNode }) {
     setChecked(true);
   }, []);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await logoutAdmin();
     clearAdminSession();
     setUnlocked(false);
     router.push("/admin");

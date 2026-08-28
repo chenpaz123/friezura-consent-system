@@ -84,25 +84,62 @@ alter table public.customers enable row level security;
 alter table public.dogs enable row level security;
 alter table public.consents enable row level security;
 
-drop policy if exists "customers_select_all" on public.customers;
-create policy "customers_select_all" on public.customers for select using (true);
-drop policy if exists "customers_insert_all" on public.customers;
-create policy "customers_insert_all" on public.customers for insert with check (true);
-drop policy if exists "customers_update_all" on public.customers;
-create policy "customers_update_all" on public.customers for update using (true);
 
-drop policy if exists "dogs_select_all" on public.dogs;
-create policy "dogs_select_all" on public.dogs for select using (true);
-drop policy if exists "dogs_insert_all" on public.dogs;
-create policy "dogs_insert_all" on public.dogs for insert with check (true);
 
-drop policy if exists "consents_select_all" on public.consents;
-create policy "consents_select_all" on public.consents for select using (true);
-drop policy if exists "consents_insert_all" on public.consents;
-create policy "consents_insert_all" on public.consents for insert with check (true);
 
 -- ----------------------------------------------------------------------------
 -- Realtime: broadcast INSERTs on consents so the admin Live Queue updates
 -- instantly via Supabase Realtime (Postgres CDC over websockets).
 -- ----------------------------------------------------------------------------
-alter publication supabase_realtime add table public.consents;
+
+
+-- ----------------------------------------------------------------------------
+-- Secure Realtime Feed
+-- We removed open select policies, so anon users can no longer listen to
+-- `consents` via Realtime (it respects RLS). Instead, we broadcast just the
+-- event and ID via a public `admin_events` table. The client sees the ping
+-- and fetches the full row securely via a Server Action.
+-- ----------------------------------------------------------------------------
+create table if not exists public.admin_events (
+  id           uuid primary key default gen_random_uuid(),
+  event_type   varchar(20) not null,
+  consent_id   uuid not null,
+  created_at   timestamptz not null default now()
+);
+
+alter table public.admin_events enable row level security;
+drop policy if exists "admin_events_select_all" on public.admin_events;
+create policy "admin_events_select_all" on public.admin_events for select using (true);
+
+create or replace function public.log_admin_event()
+returns trigger as $$
+begin
+  if (TG_OP = 'INSERT') then
+    insert into public.admin_events (event_type, consent_id, created_at)
+    values ('INSERT', new.id, new.created_at);
+  elsif (TG_OP = 'DELETE') then
+    insert into public.admin_events (event_type, consent_id, created_at)
+    -- We can't use old.created_at for the event's created_at reliably, so just use now()
+    values ('DELETE', old.id, now());
+  end if;
+  return null;
+end;
+$$ language plpgsql security definer;
+
+drop trigger if exists consents_log_event on public.consents;
+create trigger consents_log_event
+  after insert or delete on public.consents
+  for each row execute function public.log_admin_event();
+
+alter publication supabase_realtime add table public.admin_events;
+
+-- ----------------------------------------------------------------------------
+-- Restore Insert Policies
+-- The client form still submits directly to Supabase via the anon key.
+-- ----------------------------------------------------------------------------
+drop policy if exists "customers_insert_all" on public.customers;
+create policy "customers_insert_all" on public.customers for insert with check (true);
+drop policy if exists "dogs_insert_all" on public.dogs;
+create policy "dogs_insert_all" on public.dogs for insert with check (true);
+drop policy if exists "consents_insert_all" on public.consents;
+create policy "consents_insert_all" on public.consents for insert with check (true);

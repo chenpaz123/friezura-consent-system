@@ -1,49 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { supabaseBrowser } from "@/lib/supabase/client";
+import { searchConsents as serverSearchConsents } from "@/app/actions/adminData";
 import { ConsentCard } from "@/components/admin/ConsentCard";
 import { ConsentDetailsModal } from "@/components/admin/ConsentDetailsModal";
 import { useIsSuperAdmin } from "@/lib/adminSession";
 import type { ConsentWithRelations } from "@/lib/types";
-
-const RESULT_LIMIT = 25;
-
-async function searchConsents(query: string): Promise<ConsentWithRelations[]> {
-  const pattern = `%${query}%`;
-
-  const [byPhone, byOwner, byDog] = await Promise.all([
-    supabaseBrowser
-      .from("consents")
-      .select("*, customers ( full_name, phone_number ), dogs ( name )")
-      .ilike("customer_phone", pattern)
-      .order("created_at", { ascending: false })
-      .limit(RESULT_LIMIT),
-    supabaseBrowser
-      .from("consents")
-      .select("*, customers!inner ( full_name, phone_number ), dogs ( name )")
-      .ilike("customers.full_name", pattern)
-      .order("created_at", { ascending: false })
-      .limit(RESULT_LIMIT),
-    supabaseBrowser
-      .from("consents")
-      .select("*, customers ( full_name, phone_number ), dogs!inner ( name )")
-      .ilike("dogs.name", pattern)
-      .order("created_at", { ascending: false })
-      .limit(RESULT_LIMIT),
-  ]);
-
-  const merged = new Map<string, ConsentWithRelations>();
-  for (const result of [byPhone, byOwner, byDog]) {
-    for (const row of (result.data ?? []) as unknown as ConsentWithRelations[]) {
-      merged.set(row.id, row);
-    }
-  }
-
-  return Array.from(merged.values())
-    .sort((a, b) => (a.created_at < b.created_at ? 1 : -1))
-    .slice(0, RESULT_LIMIT);
-}
 
 export default function SearchPage() {
   const [query, setQuery] = useState("");
@@ -65,7 +27,7 @@ export default function SearchPage() {
       setLoading(true);
       setError(null);
       try {
-        const data = await searchConsents(trimmed);
+        const data = await serverSearchConsents(trimmed);
         if (!cancelled) setResults(data);
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : "החיפוש נכשל.");
