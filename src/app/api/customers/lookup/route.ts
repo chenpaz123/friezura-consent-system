@@ -1,10 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
 import type { LookupCustomerResponse } from "@/lib/types";
-
-function normalizePhone(raw: string) {
-  return raw.replace(/[^\d+]/g, "");
-}
+import { normalizePhone } from "@/lib/phone";
 
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);

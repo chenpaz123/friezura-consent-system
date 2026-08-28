@@ -1,10 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
 import type { CreateConsentPayload } from "@/lib/types";
-
-function normalizePhone(raw: string) {
-  return raw.replace(/[^\d+]/g, "");
-}
+import { normalizePhone } from "@/lib/phone";
 
 /**
  * Creates (or reuses) the customer + dog, then records a signed consent.
