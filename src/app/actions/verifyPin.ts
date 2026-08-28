@@ -1,8 +1,24 @@
 "use server";
 
+import crypto from "crypto";
+
 export interface VerifyPinResult {
   valid: boolean;
   isSuperAdmin: boolean;
+}
+
+function secureCompare(a: string | undefined, b: string): boolean {
+  if (!a) return false;
+  const bufferA = Buffer.from(a, "utf-8");
+  const bufferB = Buffer.from(b, "utf-8");
+
+  if (bufferA.length !== bufferB.length) {
+    // Perform dummy comparison to mitigate timing attacks based on length mismatch response time differences
+    crypto.timingSafeEqual(bufferA, bufferA);
+    return false;
+  }
+
+  return crypto.timingSafeEqual(bufferA, bufferB);
 }
 
 /**
@@ -18,7 +34,7 @@ export async function verifyPin(pin: string): Promise<VerifyPinResult> {
   const superAdminPin = process.env.SUPER_ADMIN_PIN;
 
   if (!pin) return { valid: false, isSuperAdmin: false };
-  if (superAdminPin && pin === superAdminPin) return { valid: true, isSuperAdmin: true };
-  if (adminPin && pin === adminPin) return { valid: true, isSuperAdmin: false };
+  if (secureCompare(superAdminPin, pin)) return { valid: true, isSuperAdmin: true };
+  if (secureCompare(adminPin, pin)) return { valid: true, isSuperAdmin: false };
   return { valid: false, isSuperAdmin: false };
 }
