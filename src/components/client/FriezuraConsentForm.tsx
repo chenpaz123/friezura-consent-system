@@ -2,12 +2,13 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
-import { CheckboxRow } from "@/components/client/CheckboxRow";
-import { DateInput } from "@/components/client/DateInput";
-import { SignaturePad, SignaturePadHandle } from "@/components/client/SignaturePad";
+import { SignaturePadHandle } from "@/components/client/SignaturePad";
 import { CheckInSuccess } from "@/components/client/CheckInSuccess";
-import { isoToDisplay, todayISO } from "@/lib/date";
+import { todayISO } from "@/lib/date";
 import type { CreateConsentPayload, Dog, LookupCustomerResponse } from "@/lib/types";
+import { BasicInfoSection } from "@/components/client/BasicInfoSection";
+import { QuestionnaireSection } from "@/components/client/QuestionnaireSection";
+import { SignatureSection } from "@/components/client/SignatureSection";
 
 interface FriezuraConsentFormProps {
   /** "manual" is used by the admin's Manual Entry mode; adds a "Return to dashboard" exit. */
@@ -201,182 +202,26 @@ export function FriezuraConsentForm({ variant = "kiosk", onRequestExit }: Friezu
         <p className="mt-1 text-slate-500">אנא מלאו את הפרטים הבאים לפני תחילת הטיפול.</p>
       </div>
 
-      {/* Basic info */}
-      <section className="space-y-4">
-        <div>
-          <label htmlFor="phone" className="mb-1 block text-sm font-medium text-slate-700">
-            מספר טלפון
-          </label>
-          <input
-            id="phone"
-            type="tel"
-            inputMode="tel"
-            dir="ltr"
-            placeholder="050-1234567"
-            value={form.phone}
-            onChange={(e) => update("phone", e.target.value)}
-            className={`${inputClass} text-left`}
-          />
-        </div>
+      <BasicInfoSection
+        form={form}
+        update={update}
+        setNameWasAutofilled={setNameWasAutofilled}
+        existingDogs={existingDogs}
+        selectedDogId={selectedDogId}
+        setSelectedDogId={setSelectedDogId}
+        inputClass={inputClass}
+      />
 
-        <div>
-          <label htmlFor="fullName" className="mb-1 block text-sm font-medium text-slate-700">
-            שם הלקוח/ה
-          </label>
-          <input
-            id="fullName"
-            value={form.fullName}
-            onChange={(e) => {
-              setNameWasAutofilled(false);
-              update("fullName", e.target.value);
-            }}
-            className={inputClass}
-          />
-        </div>
+      <QuestionnaireSection
+        form={form}
+        update={update}
+        setHealthy={setHealthy}
+        setHasMedicalIssue={setHasMedicalIssue}
+        setHasBehavioralIssue={setHasBehavioralIssue}
+        inputClass={inputClass}
+      />
 
-        {existingDogs.length > 0 ? (
-          <div>
-            <p className="mb-2 text-sm font-medium text-slate-700">בחר/י כלב</p>
-            <div className="flex flex-wrap gap-2">
-              {existingDogs.map((dog) => (
-                <button
-                  key={dog.id}
-                  type="button"
-                  onClick={() => setSelectedDogId(dog.id)}
-                  className={`rounded-xl border-2 px-4 py-2 font-semibold transition-colors ${
-                    selectedDogId === dog.id
-                      ? "border-brand-500 bg-brand-50 text-brand-700"
-                      : "border-slate-200 bg-white text-slate-600 active:bg-slate-50"
-                  }`}
-                >
-                  {dog.name}
-                </button>
-              ))}
-              <button
-                type="button"
-                onClick={() => setSelectedDogId("new")}
-                className={`rounded-xl border-2 px-4 py-2 font-semibold transition-colors ${
-                  selectedDogId === "new"
-                    ? "border-brand-500 bg-brand-50 text-brand-700"
-                    : "border-slate-200 bg-white text-slate-600 active:bg-slate-50"
-                }`}
-              >
-                + כלב חדש
-              </button>
-            </div>
-            {selectedDogId === "new" && (
-              <input
-                autoFocus
-                placeholder="שם הכלב החדש"
-                value={form.dogName}
-                onChange={(e) => update("dogName", e.target.value)}
-                className={`${inputClass} mt-3`}
-              />
-            )}
-          </div>
-        ) : (
-          <div>
-            <label htmlFor="dogName" className="mb-1 block text-sm font-medium text-slate-700">
-              שם הכלב
-            </label>
-            <input
-              id="dogName"
-              value={form.dogName}
-              onChange={(e) => update("dogName", e.target.value)}
-              className={inputClass}
-            />
-          </div>
-        )}
-
-        <div>
-          <label htmlFor="date" className="mb-1 block text-sm font-medium text-slate-700">
-            תאריך
-          </label>
-          <DateInput id="date" value={form.date} onChange={(iso) => update("date", iso)} className={inputClass} />
-        </div>
-      </section>
-
-      {/* Health & behavior questionnaire */}
-      <section className="space-y-3 border-t border-slate-200 pt-6">
-        <h2 className="text-lg font-bold text-brand-900">שאלון בריאותי והתנהגותי</h2>
-
-        <CheckboxRow label="הכלב בריא ואינו מקבל תרופות." checked={form.isHealthy} onChange={setHealthy} />
-
-        <CheckboxRow
-          label="קיימת מחלה / בעיה רפואית / תרופות / אלרגיה / רגישות."
-          checked={form.hasMedicalIssue}
-          onChange={setHasMedicalIssue}
-        />
-        {form.hasMedicalIssue && (
-          <textarea
-            autoFocus
-            placeholder="פירוט:"
-            value={form.medicalDetails}
-            onChange={(e) => update("medicalDetails", e.target.value)}
-            rows={3}
-            className={inputClass}
-          />
-        )}
-
-        <CheckboxRow
-          label="הכלב רגיש או אינו רגיל לפעולה מסוימת במהלך הטיפול."
-          checked={form.hasBehavioralIssue}
-          onChange={setHasBehavioralIssue}
-        />
-        {form.hasBehavioralIssue && (
-          <textarea
-            autoFocus
-            placeholder="פירוט:"
-            value={form.behavioralDetails}
-            onChange={(e) => update("behavioralDetails", e.target.value)}
-            rows={3}
-            className={inputClass}
-          />
-        )}
-
-        <div className="space-y-3 pt-2">
-          <CheckboxRow
-            label="עדכנתי את הספר/ית בכל מידע רפואי או התנהגותי רלוונטי."
-            checked={form.infoShared}
-            onChange={(v) => update("infoShared", v)}
-            required
-          />
-          <CheckboxRow
-            label="בוצע תיאום ציפיות לגבי התספורת והתוצאה הרצויה, והבנתי כי מצב הפרווה ושיתוף הפעולה של הכלב עשויים להשפיע על התוצאה."
-            checked={form.expectationsSet}
-            onChange={(v) => update("expectationsSet", v)}
-            required
-          />
-          <CheckboxRow
-            label="אני מצהיר/ה כי אני מעל גיל 18, וכי אני הבעלים החוקי של הכלב או מורשה מטעמו."
-            checked={form.ageAndOwnershipConfirmed}
-            onChange={(v) => update("ageAndOwnershipConfirmed", v)}
-            required
-          />
-        </div>
-      </section>
-
-      {/* Final signature */}
-      <section className="space-y-4 border-t border-slate-200 pt-6">
-        <h2 className="text-lg font-bold text-brand-900">אישור המשך טיפול</h2>
-        <p className="text-sm text-slate-600">קראתי, הבנתי ואני מסכים/ה להמשך הטיפול בהתאם לתיאום הציפיות.</p>
-
-        <div className="flex items-center justify-between rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
-          <span>
-            <span className="font-medium text-slate-800">שם: </span>
-            {form.fullName || "—"}
-          </span>
-          <span dir="ltr">
-            <span className="font-medium text-slate-800">תאריך: </span>
-            {isoToDisplay(form.date)}
-          </span>
-        </div>
-
-        <div>
-          <p className="mb-2 text-sm font-medium text-slate-700">חתימה</p>
-          <SignaturePad ref={padRef} onChange={setSignatureData} />
-        </div>
-      </section>
+      <SignatureSection form={form} padRef={padRef} setSignatureData={setSignatureData} />
 
       {submitError && <p className="text-sm text-red-600">{submitError}</p>}
 
