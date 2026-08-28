@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useDebounce } from "@/hooks/useDebounce";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { ConsentCard } from "@/components/admin/ConsentCard";
 import { ConsentDetailsModal } from "@/components/admin/ConsentDetailsModal";
@@ -53,32 +54,33 @@ export default function SearchPage() {
   const [selectedConsent, setSelectedConsent] = useState<ConsentWithRelations | null>(null);
   const isSuperAdmin = useIsSuperAdmin();
   const trimmed = useMemo(() => query.trim(), [query]);
+  const debouncedTrimmed = useDebounce(trimmed, 300);
 
   useEffect(() => {
-    if (trimmed.length < 2) {
+    if (debouncedTrimmed.length < 2) {
       setResults([]);
       setError(null);
       return;
     }
     let cancelled = false;
-    const timer = setTimeout(async () => {
+    const search = async () => {
       setLoading(true);
       setError(null);
       try {
-        const data = await searchConsents(trimmed);
+        const data = await searchConsents(debouncedTrimmed);
         if (!cancelled) setResults(data);
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : "החיפוש נכשל.");
       } finally {
         if (!cancelled) setLoading(false);
       }
-    }, 300);
+    };
+    search();
 
     return () => {
       cancelled = true;
-      clearTimeout(timer);
     };
-  }, [trimmed]);
+  }, [debouncedTrimmed]);
 
   return (
     <div className="mx-auto max-w-md px-4 pt-6">

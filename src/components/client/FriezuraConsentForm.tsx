@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useDebounce } from "@/hooks/useDebounce";
 import { Button } from "@/components/ui/Button";
 import { CheckboxRow } from "@/components/client/CheckboxRow";
 import { DateInput } from "@/components/client/DateInput";
@@ -51,22 +52,24 @@ export function FriezuraConsentForm({ variant = "kiosk", onRequestExit }: Friezu
   const update = <K extends keyof ReturnType<typeof emptyForm>>(key: K, value: ReturnType<typeof emptyForm>[K]) =>
     setForm((prev) => ({ ...prev, [key]: value }));
 
+  const debouncedPhone = useDebounce(form.phone, 500);
+
   // Debounced lookup: as soon as a full phone number is entered, prefill
   // the customer's name and let them pick from their dogs on file.
   useEffect(() => {
-    const digits = form.phone.replace(/\D/g, "");
+    const digits = debouncedPhone.replace(/\D/g, "");
     if (digits.length < 9) {
       setExistingDogs([]);
       setSelectedDogId(null);
       return;
     }
     let cancelled = false;
-    const timer = setTimeout(async () => {
+    const lookup = async () => {
       try {
         const res = await fetch("/api/customers/lookup", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ phone: form.phone }),
+          body: JSON.stringify({ phone: debouncedPhone }),
         });
         const data: LookupCustomerResponse = await res.json();
         if (cancelled || !data.exists || !data.customer) return;
@@ -80,14 +83,14 @@ export function FriezuraConsentForm({ variant = "kiosk", onRequestExit }: Friezu
       } catch {
         // Silent — lookup is just a convenience prefill, not required for submission.
       }
-    }, 500);
+    };
+    lookup();
 
     return () => {
       cancelled = true;
-      clearTimeout(timer);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form.phone]);
+  }, [debouncedPhone]);
 
   const setHealthy = (checked: boolean) => {
     update("isHealthy", checked);
