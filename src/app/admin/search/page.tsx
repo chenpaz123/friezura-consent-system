@@ -33,12 +33,11 @@ async function searchConsents(query: string): Promise<ConsentWithRelations[]> {
       .limit(RESULT_LIMIT),
   ]);
 
-  const merged = new Map<string, ConsentWithRelations>();
-  for (const result of [byPhone, byOwner, byDog]) {
-    for (const row of (result.data ?? []) as unknown as ConsentWithRelations[]) {
-      merged.set(row.id, row);
-    }
-  }
+  const merged = new Map<string, ConsentWithRelations>(
+    [byPhone, byOwner, byDog]
+      .flatMap((res) => (res.data ?? []) as unknown as ConsentWithRelations[])
+      .map((row) => [row.id, row])
+  );
 
   return Array.from(merged.values())
     .sort((a, b) => (a.created_at < b.created_at ? 1 : -1))
