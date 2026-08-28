@@ -26,8 +26,8 @@ export async function POST(req: NextRequest) {
   if (!fullName) {
     return NextResponse.json({ error: "יש להזין שם מלא." }, { status: 400 });
   }
-  if (!payload.dogId && !payload.dogName?.trim()) {
-    return NextResponse.json({ error: "יש להזין שם כלב או לבחור כלב קיים." }, { status: 400 });
+  if (!payload.dogName?.trim()) {
+    return NextResponse.json({ error: "יש להזין שם כלב." }, { status: 400 });
   }
   if (!payload.agreedToTerms) {
     return NextResponse.json({ error: "יש לאשר את תנאי הטיפול." }, { status: 400 });
@@ -45,12 +45,21 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: customerError.message }, { status: 500 });
   }
 
-  // 2. Resolve the dog: reuse an existing one, or create a new one for this customer.
-  let dogId = payload.dogId;
-  if (!dogId) {
+  // 2. Resolve the dog: reuse an existing one by name, or create a new one for this customer.
+  let dogId: string;
+  const { data: existingDog } = await supabaseServer
+    .from("dogs")
+    .select("id")
+    .eq("customer_phone", phone)
+    .ilike("name", payload.dogName.trim())
+    .maybeSingle();
+
+  if (existingDog) {
+    dogId = existingDog.id;
+  } else {
     const { data: newDog, error: dogError } = await supabaseServer
       .from("dogs")
-      .insert({ customer_phone: phone, name: payload.dogName!.trim() })
+      .insert({ customer_phone: phone, name: payload.dogName.trim() })
       .select("id")
       .single();
 

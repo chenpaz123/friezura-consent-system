@@ -7,7 +7,7 @@ import { DateInput } from "@/components/client/DateInput";
 import { SignaturePad, SignaturePadHandle } from "@/components/client/SignaturePad";
 import { CheckInSuccess } from "@/components/client/CheckInSuccess";
 import { isoToDisplay, todayISO } from "@/lib/date";
-import type { CreateConsentPayload, Dog, LookupCustomerResponse } from "@/lib/types";
+import type { CreateConsentPayload, Dog } from "@/lib/types";
 
 interface FriezuraConsentFormProps {
   /** "manual" is used by the admin's Manual Entry mode; adds a "Return to dashboard" exit. */
@@ -37,10 +37,6 @@ const emptyForm = () => ({
  */
 export function FriezuraConsentForm({ variant = "kiosk", onRequestExit }: FriezuraConsentFormProps) {
   const [form, setForm] = useState(emptyForm());
-  const [existingDogs, setExistingDogs] = useState<Dog[]>([]);
-  const [selectedDogId, setSelectedDogId] = useState<string | "new" | null>(null);
-  const [nameWasAutofilled, setNameWasAutofilled] = useState(false);
-
   const [signatureData, setSignatureData] = useState<string | null>(null);
   const padRef = useRef<SignaturePadHandle>(null);
 
@@ -50,44 +46,6 @@ export function FriezuraConsentForm({ variant = "kiosk", onRequestExit }: Friezu
 
   const update = <K extends keyof ReturnType<typeof emptyForm>>(key: K, value: ReturnType<typeof emptyForm>[K]) =>
     setForm((prev) => ({ ...prev, [key]: value }));
-
-  // Debounced lookup: as soon as a full phone number is entered, prefill
-  // the customer's name and let them pick from their dogs on file.
-  useEffect(() => {
-    const digits = form.phone.replace(/\D/g, "");
-    if (digits.length < 9) {
-      setExistingDogs([]);
-      setSelectedDogId(null);
-      return;
-    }
-    let cancelled = false;
-    const timer = setTimeout(async () => {
-      try {
-        const res = await fetch("/api/customers/lookup", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ phone: form.phone }),
-        });
-        const data: LookupCustomerResponse = await res.json();
-        if (cancelled || !data.exists || !data.customer) return;
-
-        if (!form.fullName || nameWasAutofilled) {
-          update("fullName", data.customer.full_name);
-          setNameWasAutofilled(true);
-        }
-        setExistingDogs(data.dogs);
-        setSelectedDogId(data.dogs.length > 0 ? data.dogs[0].id : "new");
-      } catch {
-        // Silent — lookup is just a convenience prefill, not required for submission.
-      }
-    }, 500);
-
-    return () => {
-      cancelled = true;
-      clearTimeout(timer);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form.phone]);
 
   const setHealthy = (checked: boolean) => {
     update("isHealthy", checked);
@@ -108,8 +66,7 @@ export function FriezuraConsentForm({ variant = "kiosk", onRequestExit }: Friezu
     if (!checked) update("behavioralDetails", "");
   };
 
-  const dogNameValid =
-    existingDogs.length > 0 ? selectedDogId === "new" ? form.dogName.trim().length > 0 : !!selectedDogId : form.dogName.trim().length > 0;
+  const dogNameValid = form.dogName.trim().length > 0;
 
   const canSubmit =
     form.phone.replace(/\D/g, "").length >= 9 &&
@@ -127,9 +84,6 @@ export function FriezuraConsentForm({ variant = "kiosk", onRequestExit }: Friezu
 
   const resetForm = () => {
     setForm(emptyForm());
-    setExistingDogs([]);
-    setSelectedDogId(null);
-    setNameWasAutofilled(false);
     setSignatureData(null);
     setSubmitError(null);
     setSuccess(false);
@@ -144,8 +98,7 @@ export function FriezuraConsentForm({ variant = "kiosk", onRequestExit }: Friezu
       const payload: CreateConsentPayload = {
         customerPhone: form.phone,
         fullName: form.fullName.trim(),
-        dogId: selectedDogId && selectedDogId !== "new" ? selectedDogId : undefined,
-        dogName: !selectedDogId || selectedDogId === "new" ? form.dogName.trim() : undefined,
+        dogName: form.dogName.trim(),
         hasMedicalIssue: form.hasMedicalIssue,
         // Always send something meaningful: the typed complaint when there's
         // an issue, or an explicit "בריא" when checkbox (a) is checked — so
@@ -177,7 +130,7 @@ export function FriezuraConsentForm({ variant = "kiosk", onRequestExit }: Friezu
     return (
       <div className="mx-auto w-full max-w-md px-5 py-8">
         <CheckInSuccess
-          dogName={existingDogs.find((d) => d.id === selectedDogId)?.name ?? form.dogName}
+          dogName={form.dogName}
           onDone={resetForm}
           onSecondary={variant === "manual" ? onRequestExit : undefined}
           secondaryLabel={variant === "manual" ? "חזרה ללוח הבקרה" : undefined}
@@ -226,67 +179,22 @@ export function FriezuraConsentForm({ variant = "kiosk", onRequestExit }: Friezu
           <input
             id="fullName"
             value={form.fullName}
-            onChange={(e) => {
-              setNameWasAutofilled(false);
-              update("fullName", e.target.value);
-            }}
+            onChange={(e) => update("fullName", e.target.value)}
             className={inputClass}
           />
         </div>
 
-        {existingDogs.length > 0 ? (
-          <div>
-            <p className="mb-2 text-sm font-medium text-slate-700">בחר/י כלב</p>
-            <div className="flex flex-wrap gap-2">
-              {existingDogs.map((dog) => (
-                <button
-                  key={dog.id}
-                  type="button"
-                  onClick={() => setSelectedDogId(dog.id)}
-                  className={`rounded-xl border-2 px-4 py-2 font-semibold transition-colors ${
-                    selectedDogId === dog.id
-                      ? "border-brand-500 bg-brand-50 text-brand-700"
-                      : "border-slate-200 bg-white text-slate-600 active:bg-slate-50"
-                  }`}
-                >
-                  {dog.name}
-                </button>
-              ))}
-              <button
-                type="button"
-                onClick={() => setSelectedDogId("new")}
-                className={`rounded-xl border-2 px-4 py-2 font-semibold transition-colors ${
-                  selectedDogId === "new"
-                    ? "border-brand-500 bg-brand-50 text-brand-700"
-                    : "border-slate-200 bg-white text-slate-600 active:bg-slate-50"
-                }`}
-              >
-                + כלב חדש
-              </button>
-            </div>
-            {selectedDogId === "new" && (
-              <input
-                autoFocus
-                placeholder="שם הכלב החדש"
-                value={form.dogName}
-                onChange={(e) => update("dogName", e.target.value)}
-                className={`${inputClass} mt-3`}
-              />
-            )}
-          </div>
-        ) : (
-          <div>
-            <label htmlFor="dogName" className="mb-1 block text-sm font-medium text-slate-700">
-              שם הכלב
-            </label>
-            <input
-              id="dogName"
-              value={form.dogName}
-              onChange={(e) => update("dogName", e.target.value)}
-              className={inputClass}
-            />
-          </div>
-        )}
+        <div>
+          <label htmlFor="dogName" className="mb-1 block text-sm font-medium text-slate-700">
+            שם הכלב
+          </label>
+          <input
+            id="dogName"
+            value={form.dogName}
+            onChange={(e) => update("dogName", e.target.value)}
+            className={inputClass}
+          />
+        </div>
 
         <div>
           <label htmlFor="date" className="mb-1 block text-sm font-medium text-slate-700">

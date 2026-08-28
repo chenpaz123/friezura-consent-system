@@ -31,12 +31,6 @@ export interface ConsentWithRelations extends Consent {
   dogs: Pick<Dog, "name"> | null;
 }
 
-export interface LookupCustomerResponse {
-  exists: boolean;
-  customer: Customer | null;
-  dogs: Dog[];
-}
-
 export interface QuestionnaireAnswers {
   hasMedicalIssue: boolean;
   medicalDetails: string;
@@ -47,8 +41,7 @@ export interface QuestionnaireAnswers {
 export interface CreateConsentPayload {
   customerPhone: string;
   fullName: string;
-  dogId?: string; // provided for returning customers with an existing dog
-  dogName?: string; // provided when registering a new dog
+  dogName: string;
   hasMedicalIssue: boolean;
   medicalDetails: string;
   hasBehavioralIssue: boolean;
