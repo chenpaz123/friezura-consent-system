@@ -2,12 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase/client";
+import { getAdminPin, useIsSuperAdmin } from "@/lib/adminSession";
+import { getConsentById, getConsents } from "@/app/actions/adminData";
+import { cutoffForFilter, type TimeFilterId } from "@/lib/timeFilters";
 import { ConsentCard } from "@/components/admin/ConsentCard";
 import { ConsentDetailsModal } from "@/components/admin/ConsentDetailsModal";
-import { useIsSuperAdmin } from "@/lib/adminSession";
 import type { ConsentWithRelations } from "@/lib/types";
 
-const CONSENT_SELECT = "*, customers ( full_name, phone_number ), dogs ( name )";
 const RESULT_LIMIT = 500;
 
 const TIME_FILTERS = [
@@ -17,31 +18,16 @@ const TIME_FILTERS = [
   { id: "all", label: "הכל" },
 ] as const;
 
-type TimeFilterId = (typeof TIME_FILTERS)[number]["id"];
-
-/** Returns the ISO cutoff a consent's created_at must be >= to match the filter, or null for "all". */
-function cutoffForFilter(filter: TimeFilterId): string | null {
-  const now = new Date();
-  switch (filter) {
-    case "today": {
-      const start = new Date(now);
-      start.setHours(0, 0, 0, 0);
-      return start.toISOString();
-    }
-    case "7d":
-      return new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
-    case "30d":
-      return new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
-    case "all":
-      return null;
-  }
-}
-
 /**
  * Realtime customer registry feed for the admin dashboard. Loads consents
- * for the selected time range, then subscribes to Supabase Realtime
- * (Postgres CDC over websockets) so newly signed consents appear instantly
- * — as long as they fall within the currently selected range.
+ * for the selected time range via the `getConsents` Server Action (which
+ * re-verifies the admin PIN and queries with the service_role key, bypassing
+ * RLS server-side), then subscribes to Realtime on `admin_events` — a
+ * ping-only table (id/event_type/consent_id, no PII) that a database trigger
+ * populates on every consent insert/delete. RLS denies `anon` SELECT on
+ * `consents` directly, so subscribing to that table would silently stop
+ * delivering anything; `admin_events` is what the Live Queue actually
+ * listens to, and each ping is turned into a real row via `getConsentById`.
  */
 export function LiveQueue() {
   const [filter, setFilter] = useState<TimeFilterId>("today");
@@ -52,68 +38,62 @@ export function LiveQueue() {
   const [selectedConsent, setSelectedConsent] = useState<ConsentWithRelations | null>(null);
   const isSuperAdmin = useIsSuperAdmin();
 
+  // Initial load (and reload) whenever the time-range filter changes.
   useEffect(() => {
     let cancelled = false;
-    const cutoff = cutoffForFilter(filter);
 
     async function load() {
       setLoading(true);
-      let query = supabaseBrowser
-        .from("consents")
-        .select(CONSENT_SELECT)
-        .order("created_at", { ascending: false })
-        .limit(RESULT_LIMIT);
-      if (cutoff) query = query.gte("created_at", cutoff);
-
-      const { data, error: fetchError } = await query;
+      const pin = getAdminPin();
+      const result = pin ? await getConsents(pin, filter) : { error: "יש להתחבר מחדש." };
 
       if (cancelled) return;
-      if (fetchError) {
-        setError(fetchError.message);
+      if (result.error) {
+        setError(result.error);
       } else {
         setError(null);
-        setConsents((data ?? []) as unknown as ConsentWithRelations[]);
+        setConsents((result.data ?? []).slice(0, RESULT_LIMIT));
       }
       setLoading(false);
     }
 
     load();
+    return () => {
+      cancelled = true;
+    };
+  }, [filter]);
+
+  // Realtime subscription: independent of `filter` re-fetching above, since
+  // it only needs to react to pings, not re-run the range query.
+  useEffect(() => {
+    const cutoff = cutoffForFilter(filter);
 
     const channel = supabaseBrowser
-      .channel(`consents-registry-${filter}`)
+      .channel(`admin-events-${filter}`)
       .on(
         "postgres_changes",
-        { event: "INSERT", schema: "public", table: "consents" },
+        { event: "INSERT", schema: "public", table: "admin_events" },
         async (payload) => {
-          const newRow = payload.new as { id: string; created_at: string };
-          // Only surface it live if it actually falls within the active filter.
-          if (cutoff && newRow.created_at < cutoff) return;
+          const event = payload.new as { event_type: "insert" | "delete"; consent_id: string; created_at: string };
 
-          const { data } = await supabaseBrowser
-            .from("consents")
-            .select(CONSENT_SELECT)
-            .eq("id", newRow.id)
-            .single();
-
-          if (data) {
-            setConsents((prev) => [data as unknown as ConsentWithRelations, ...prev]);
+          if (event.event_type === "delete") {
+            setConsents((prev) => prev.filter((c) => c.id !== event.consent_id));
+            return;
           }
-        }
-      )
-      .on(
-        "postgres_changes",
-        { event: "DELETE", schema: "public", table: "consents" },
-        (payload) => {
-          // Keeps every open admin tab in sync when a super-admin deletes a
-          // test entry elsewhere, not just the tab that performed the delete.
-          const oldRow = payload.old as { id: string };
-          setConsents((prev) => prev.filter((c) => c.id !== oldRow.id));
+
+          const pin = getAdminPin();
+          if (!pin) return;
+          const result = await getConsentById(pin, event.consent_id);
+          if (!result.data) return;
+          // Only surface it live if it actually falls within the active filter.
+          if (cutoff && result.data.created_at < cutoff) return;
+          setConsents((prev) => [result.data as ConsentWithRelations, ...prev]);
         }
       )
       .subscribe((status) => setConnected(status === "SUBSCRIBED"));
 
     return () => {
-      cancelled = true;
+      setConnected(false);
       supabaseBrowser.removeChannel(channel);
     };
   }, [filter]);

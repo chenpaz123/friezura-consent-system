@@ -29,6 +29,7 @@ src/
     actions/
       deleteConsent.ts           Server Action — super-admin-only hard delete (service_role key)
       verifyPin.ts               Server Action — the only place ADMIN_PIN/SUPER_ADMIN_PIN are ever compared
+      adminData.ts               Server Actions — getConsents/getConsentById/searchConsents, PIN-checked, service_role key
     admin/
       layout.tsx                 Server Component: owns the /admin-only PWA manifest metadata
       page.tsx                   Redirects /admin -> /admin/queue
@@ -36,21 +37,22 @@ src/
       search/page.tsx            Search past consents
       manual/page.tsx            Manual Entry — kiosk mode, dual-PIN "Staff Exit"
     api/
-      customers/lookup/route.ts  POST — look up a customer + their dogs by phone
+      customers/lookup/route.ts  POST — look up a phone's dog names only (no PII, no ids — see below)
       consents/route.ts          POST — create customer/dog (if needed) + consent
   components/
     client/                      FriezuraConsentForm, SignaturePad, DateInput, CheckboxRow, CheckInSuccess
     admin/                       AdminGate, BottomNav, LiveQueue, ConsentCard, ConsentDetailsModal, PinGate
     ui/                          Shared primitives (Button)
   lib/
-    supabase/client.ts           Browser Supabase client (anon key)
-    supabase/server.ts           Server-only Supabase client (service role key)
+    supabase/client.ts           Browser Supabase client (anon key) — insert-only + the admin_events Realtime feed
+    supabase/server.ts           Server-only Supabase client (service role key, bypasses RLS)
     pins.ts                      PIN_LENGTH UI constant only — no PIN values live in source
-    adminSession.ts              sessionStorage helpers for the admin unlock + super-admin flag
+    adminSession.ts              sessionStorage helpers for the admin unlock, super-admin flag, and stored PIN
+    timeFilters.ts              TimeFilterId + the today/7d/30d/all cutoff shared by the Live Queue and its Server Action
     date.ts                      DD/MM/YYYY-only date helpers (no locale-dependent native <input type="date">)
     types.ts                     Shared TypeScript types
 supabase/
-  schema.sql                     Full SQL schema, RLS policies, Realtime setup
+  schema.sql                     Full SQL schema, locked-down RLS policies, admin_events + trigger, Realtime setup
 public/
   manifest.json                 PWA manifest, scoped to /admin only (start_url + scope = "/admin")
 ```
@@ -61,15 +63,26 @@ public/
 2. Open the SQL editor and run `supabase/schema.sql`. It creates:
    - `customers` (`phone_number` PK), `dogs`, `consents`
    - indexes on the common lookup/query paths
-   - RLS policies (permissive by default for select/insert/update — see the
-     comment in the file for why, and how to tighten them once staff auth is
-     added). There is deliberately **no DELETE policy** on `consents` — that's
-     what makes a normal client delete impossible and is what the
-     super-admin `deleteConsent` Server Action bypasses on purpose via the
-     service_role key.
-   - `alter publication supabase_realtime add table public.consents;` so the
-     registry gets instant updates over websockets (including deletes, so
-     other open admin tabs drop a removed row live)
+   - RLS policies: the public `anon` key can **only INSERT** into
+     `customers`/`dogs`/`consents` — no SELECT, UPDATE, or DELETE, on any of
+     them. That's intentional: `anon` is extractable from the client bundle,
+     so it must never be able to read back existing customer data. Every
+     admin read goes through a Server Action using the service_role key
+     instead (see below) — there is deliberately **no DELETE policy**
+     anywhere for `consents`, which is what the super-admin `deleteConsent`
+     Server Action bypasses on purpose.
+   - `admin_events`, a ping-only table (`event_type` + `consent_id` +
+     `created_at`, no PII) that a `security definer` trigger populates on
+     every `consents` insert/delete. `anon` *can* SELECT this one — there's
+     nothing sensitive in it — which is what lets the Live Queue keep
+     getting instant Realtime updates now that it can no longer subscribe
+     to `consents` directly (Realtime's Postgres Changes feature enforces a
+     table's SELECT RLS policy for the connecting role, so once `anon` loses
+     SELECT on `consents`, an `anon`-key subscription to it would silently
+     stop delivering anything).
+   - Realtime publication membership for both `consents` and `admin_events`
+     (idempotent — safe to re-run this whole file against an existing
+     project without erroring on "already a publication member").
 3. Copy your project's URL and keys from **Project Settings → API**.
 
 ## Environment variables
@@ -132,9 +145,10 @@ single, continuous Hebrew form:
 
 1. **Basic info** — phone (used as the customer's identifier), name, dog,
    date (strict DD/MM/YYYY via `DateInput`, never the locale-dependent
-   native date picker). As soon as a full phone number is typed, it's looked
-   up in the background; an existing customer's name is prefilled and their
-   dogs on file appear as quick-select chips (with a "+ כלב חדש" option).
+   native date picker). As soon as a full phone number is typed, its dog
+   names on file (nothing else — see `/api/customers/lookup` below) are
+   looked up in the background and appear as quick-select chips (with a
+   "+ כלב חדש" option); the owner's name is always typed fresh.
 2. **Health, behavior & declarations questionnaire** — one flat list of
    required checkboxes:
    - "healthy, no medication" and "has a medical issue" are mutually
@@ -169,9 +183,17 @@ The same component powers the admin's **Manual Entry** screen
   that PIN and hard-deletes via the service_role key.
 - **Registry & filtering**: `LiveQueue.tsx` (rendered at `/admin/queue`) is a
   realtime, filterable customer registry — chips for today / last 7 days /
-  last 30 days / all — that re-queries and re-subscribes to Realtime on
-  filter change. Tapping a `ConsentCard` opens `ConsentDetailsModal` with the
-  full record, including the rendered signature.
+  last 30 days / all — that re-fetches and re-subscribes to Realtime on
+  filter change. It loads data via the `getConsents` Server Action rather
+  than querying Supabase directly (the `anon` key can no longer SELECT
+  `consents` at all), forwarding the PIN it already has from `adminSession.ts`
+  on every call; that PIN is independently re-verified server-side before
+  the service_role key ever touches the database. Its Realtime subscription
+  listens to `admin_events` (ping-only, no PII) and turns each ping into a
+  real row via `getConsentById`. The Search tab (`/admin/search`) works the
+  same way through `searchConsents`. Tapping a `ConsentCard` opens
+  `ConsentDetailsModal` with the full record, including the rendered
+  signature.
 - **Manual Entry kiosk mode**: `/admin/manual` hides the bottom nav entirely
   (`AdminGate.tsx` checks the pathname) so a customer holding the device to
   sign can't reach Search or the registry. The "יציאת צוות" (Staff Exit)

@@ -1,11 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
-import type { LookupCustomerResponse } from "@/lib/types";
 
 function normalizePhone(raw: string) {
   return raw.replace(/[^\d+]/g, "");
 }
 
+/**
+ * Looks up the dog names on file for a phone number, for the client form's
+ * "pick your dog" prefill. Deliberately returns nothing else — no customer
+ * name, no ids, no medical/behavioral history, and no signal about whether
+ * the phone number belongs to a known customer at all (an unknown number
+ * and a known customer with no dogs yet both come back as `[]`), so this
+ * unauthenticated endpoint can't be used to enumerate or profile customers.
+ */
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
   const phone = typeof body?.phone === "string" ? normalizePhone(body.phone) : "";
@@ -14,39 +21,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "יש להזין מספר טלפון תקין." }, { status: 400 });
   }
 
-  const [
-    { data: customer, error: customerError },
-    { data: dogs, error: dogsError }
-  ] = await Promise.all([
-    supabaseServer
-      .from("customers")
-      .select("*")
-      .eq("phone_number", phone)
-      .maybeSingle(),
-    supabaseServer
-      .from("dogs")
-      .select("*")
-      .eq("customer_phone", phone)
-      .order("created_at", { ascending: true })
-  ]);
+  const { data: dogs, error } = await supabaseServer
+    .from("dogs")
+    .select("name")
+    .eq("customer_phone", phone)
+    .order("created_at", { ascending: true });
 
-  if (customerError) {
-    return NextResponse.json({ error: customerError.message }, { status: 500 });
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  if (!customer) {
-    const response: LookupCustomerResponse = { exists: false, customer: null, dogs: [] };
-    return NextResponse.json(response);
-  }
-
-  if (dogsError) {
-    return NextResponse.json({ error: dogsError.message }, { status: 500 });
-  }
-
-  const response: LookupCustomerResponse = {
-    exists: true,
-    customer,
-    dogs: dogs ?? [],
-  };
-  return NextResponse.json(response);
+  const dogNames: string[] = (dogs ?? []).map((dog) => dog.name);
+  return NextResponse.json(dogNames);
 }

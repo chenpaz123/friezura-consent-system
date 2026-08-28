@@ -7,7 +7,7 @@ import { DateInput } from "@/components/client/DateInput";
 import { SignaturePad, SignaturePadHandle } from "@/components/client/SignaturePad";
 import { CheckInSuccess } from "@/components/client/CheckInSuccess";
 import { isoToDisplay, todayISO } from "@/lib/date";
-import type { CreateConsentPayload, Dog, LookupCustomerResponse } from "@/lib/types";
+import type { CreateConsentPayload, LookupCustomerResponse } from "@/lib/types";
 
 interface FriezuraConsentFormProps {
   /** "manual" is used by the admin's Manual Entry mode; adds a "Return to dashboard" exit. */
@@ -37,9 +37,8 @@ const emptyForm = () => ({
  */
 export function FriezuraConsentForm({ variant = "kiosk", onRequestExit }: FriezuraConsentFormProps) {
   const [form, setForm] = useState(emptyForm());
-  const [existingDogs, setExistingDogs] = useState<Dog[]>([]);
-  const [selectedDogId, setSelectedDogId] = useState<string | "new" | null>(null);
-  const [nameWasAutofilled, setNameWasAutofilled] = useState(false);
+  const [existingDogNames, setExistingDogNames] = useState<string[]>([]);
+  const [selectedDogName, setSelectedDogName] = useState<string | "new" | null>(null);
 
   const [signatureData, setSignatureData] = useState<string | null>(null);
   const padRef = useRef<SignaturePadHandle>(null);
@@ -51,13 +50,15 @@ export function FriezuraConsentForm({ variant = "kiosk", onRequestExit }: Friezu
   const update = <K extends keyof ReturnType<typeof emptyForm>>(key: K, value: ReturnType<typeof emptyForm>[K]) =>
     setForm((prev) => ({ ...prev, [key]: value }));
 
-  // Debounced lookup: as soon as a full phone number is entered, prefill
-  // the customer's name and let them pick from their dogs on file.
+  // Debounced lookup: as soon as a full phone number is entered, let the
+  // customer pick from their dogs on file instead of retyping the name.
+  // The endpoint deliberately returns only dog names (see the route) — no
+  // customer name, so there's no name-prefill anymore.
   useEffect(() => {
     const digits = form.phone.replace(/\D/g, "");
     if (digits.length < 9) {
-      setExistingDogs([]);
-      setSelectedDogId(null);
+      setExistingDogNames([]);
+      setSelectedDogName(null);
       return;
     }
     let cancelled = false;
@@ -68,15 +69,11 @@ export function FriezuraConsentForm({ variant = "kiosk", onRequestExit }: Friezu
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ phone: form.phone }),
         });
-        const data: LookupCustomerResponse = await res.json();
-        if (cancelled || !data.exists || !data.customer) return;
+        const dogNames: LookupCustomerResponse = await res.json();
+        if (cancelled) return;
 
-        if (!form.fullName || nameWasAutofilled) {
-          update("fullName", data.customer.full_name);
-          setNameWasAutofilled(true);
-        }
-        setExistingDogs(data.dogs);
-        setSelectedDogId(data.dogs.length > 0 ? data.dogs[0].id : "new");
+        setExistingDogNames(dogNames);
+        setSelectedDogName(dogNames.length > 0 ? dogNames[0] : "new");
       } catch {
         // Silent — lookup is just a convenience prefill, not required for submission.
       }
@@ -109,7 +106,13 @@ export function FriezuraConsentForm({ variant = "kiosk", onRequestExit }: Friezu
   };
 
   const dogNameValid =
-    existingDogs.length > 0 ? selectedDogId === "new" ? form.dogName.trim().length > 0 : !!selectedDogId : form.dogName.trim().length > 0;
+    existingDogNames.length > 0
+      ? selectedDogName === "new"
+        ? form.dogName.trim().length > 0
+        : !!selectedDogName
+      : form.dogName.trim().length > 0;
+
+  const resolvedDogName = selectedDogName && selectedDogName !== "new" ? selectedDogName : form.dogName.trim();
 
   const canSubmit =
     form.phone.replace(/\D/g, "").length >= 9 &&
@@ -127,9 +130,8 @@ export function FriezuraConsentForm({ variant = "kiosk", onRequestExit }: Friezu
 
   const resetForm = () => {
     setForm(emptyForm());
-    setExistingDogs([]);
-    setSelectedDogId(null);
-    setNameWasAutofilled(false);
+    setExistingDogNames([]);
+    setSelectedDogName(null);
     setSignatureData(null);
     setSubmitError(null);
     setSuccess(false);
@@ -144,8 +146,7 @@ export function FriezuraConsentForm({ variant = "kiosk", onRequestExit }: Friezu
       const payload: CreateConsentPayload = {
         customerPhone: form.phone,
         fullName: form.fullName.trim(),
-        dogId: selectedDogId && selectedDogId !== "new" ? selectedDogId : undefined,
-        dogName: !selectedDogId || selectedDogId === "new" ? form.dogName.trim() : undefined,
+        dogName: resolvedDogName,
         hasMedicalIssue: form.hasMedicalIssue,
         // Always send something meaningful: the typed complaint when there's
         // an issue, or an explicit "בריא" when checkbox (a) is checked — so
@@ -177,7 +178,7 @@ export function FriezuraConsentForm({ variant = "kiosk", onRequestExit }: Friezu
     return (
       <div className="mx-auto w-full max-w-md px-5 py-8">
         <CheckInSuccess
-          dogName={existingDogs.find((d) => d.id === selectedDogId)?.name ?? form.dogName}
+          dogName={resolvedDogName}
           onDone={resetForm}
           onSecondary={variant === "manual" ? onRequestExit : undefined}
           secondaryLabel={variant === "manual" ? "חזרה ללוח הבקרה" : undefined}
@@ -226,37 +227,34 @@ export function FriezuraConsentForm({ variant = "kiosk", onRequestExit }: Friezu
           <input
             id="fullName"
             value={form.fullName}
-            onChange={(e) => {
-              setNameWasAutofilled(false);
-              update("fullName", e.target.value);
-            }}
+            onChange={(e) => update("fullName", e.target.value)}
             className={inputClass}
           />
         </div>
 
-        {existingDogs.length > 0 ? (
+        {existingDogNames.length > 0 ? (
           <div>
             <p className="mb-2 text-sm font-medium text-slate-700">בחר/י כלב</p>
             <div className="flex flex-wrap gap-2">
-              {existingDogs.map((dog) => (
+              {existingDogNames.map((name) => (
                 <button
-                  key={dog.id}
+                  key={name}
                   type="button"
-                  onClick={() => setSelectedDogId(dog.id)}
+                  onClick={() => setSelectedDogName(name)}
                   className={`rounded-xl border-2 px-4 py-2 font-semibold transition-colors ${
-                    selectedDogId === dog.id
+                    selectedDogName === name
                       ? "border-brand-500 bg-brand-50 text-brand-700"
                       : "border-slate-200 bg-white text-slate-600 active:bg-slate-50"
                   }`}
                 >
-                  {dog.name}
+                  {name}
                 </button>
               ))}
               <button
                 type="button"
-                onClick={() => setSelectedDogId("new")}
+                onClick={() => setSelectedDogName("new")}
                 className={`rounded-xl border-2 px-4 py-2 font-semibold transition-colors ${
-                  selectedDogId === "new"
+                  selectedDogName === "new"
                     ? "border-brand-500 bg-brand-50 text-brand-700"
                     : "border-slate-200 bg-white text-slate-600 active:bg-slate-50"
                 }`}
@@ -264,7 +262,7 @@ export function FriezuraConsentForm({ variant = "kiosk", onRequestExit }: Friezu
                 + כלב חדש
               </button>
             </div>
-            {selectedDogId === "new" && (
+            {selectedDogName === "new" && (
               <input
                 autoFocus
                 placeholder="שם הכלב החדש"
