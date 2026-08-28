@@ -50,8 +50,8 @@ export function AdminGate({ children }: { children: React.ReactNode }) {
       <PinGate
         variant="screen"
         title="הזינו קוד גישה ללוח הניהול"
-        onSuccess={({ isSuperAdmin }) => {
-          markAdminUnlocked();
+        onSuccess={({ pin, isSuperAdmin }) => {
+          markAdminUnlocked(pin);
           if (isSuperAdmin) markSuperAdmin();
           setUnlocked(true);
         }}

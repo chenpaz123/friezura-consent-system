@@ -31,11 +31,8 @@ export interface ConsentWithRelations extends Consent {
   dogs: Pick<Dog, "name"> | null;
 }
 
-export interface LookupCustomerResponse {
-  exists: boolean;
-  customer: Customer | null;
-  dogs: Dog[];
-}
+/** `/api/customers/lookup` returns nothing but the caller's dog names — see that route for why. */
+export type LookupCustomerResponse = string[];
 
 export interface QuestionnaireAnswers {
   hasMedicalIssue: boolean;
@@ -47,8 +44,8 @@ export interface QuestionnaireAnswers {
 export interface CreateConsentPayload {
   customerPhone: string;
   fullName: string;
-  dogId?: string; // provided for returning customers with an existing dog
-  dogName?: string; // provided when registering a new dog
+  /** Always the dog's name, whether picked from the phone's existing dogs or freshly typed — dogs are resolved/deduped by name, not id, since the lookup API never exposes ids. */
+  dogName: string;
   hasMedicalIssue: boolean;
   medicalDetails: string;
   hasBehavioralIssue: boolean;

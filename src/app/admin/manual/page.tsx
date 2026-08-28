@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { FriezuraConsentForm } from "@/components/client/FriezuraConsentForm";
 import { PinGate } from "@/components/admin/PinGate";
-import { clearSuperAdmin, markSuperAdmin } from "@/lib/adminSession";
+import { clearSuperAdmin, markSuperAdmin, setAdminPin } from "@/lib/adminSession";
 
 /**
  * Lets staff hand the device to a customer who can't scan the QR code.
@@ -38,7 +38,8 @@ export default function ManualEntryPage() {
 
       {pinOpen && (
         <PinGate
-          onSuccess={({ isSuperAdmin }) => {
+          onSuccess={({ pin, isSuperAdmin }) => {
+            setAdminPin(pin);
             if (isSuperAdmin) markSuperAdmin();
             else clearSuperAdmin();
             router.push("/admin/queue");
