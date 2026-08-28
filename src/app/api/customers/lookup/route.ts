@@ -14,11 +14,21 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "יש להזין מספר טלפון תקין." }, { status: 400 });
   }
 
-  const { data: customer, error: customerError } = await supabaseServer
-    .from("customers")
-    .select("*")
-    .eq("phone_number", phone)
-    .maybeSingle();
+  const [
+    { data: customer, error: customerError },
+    { data: dogs, error: dogsError }
+  ] = await Promise.all([
+    supabaseServer
+      .from("customers")
+      .select("*")
+      .eq("phone_number", phone)
+      .maybeSingle(),
+    supabaseServer
+      .from("dogs")
+      .select("*")
+      .eq("customer_phone", phone)
+      .order("created_at", { ascending: true })
+  ]);
 
   if (customerError) {
     return NextResponse.json({ error: customerError.message }, { status: 500 });
@@ -28,12 +38,6 @@ export async function POST(req: NextRequest) {
     const response: LookupCustomerResponse = { exists: false, customer: null, dogs: [] };
     return NextResponse.json(response);
   }
-
-  const { data: dogs, error: dogsError } = await supabaseServer
-    .from("dogs")
-    .select("*")
-    .eq("customer_phone", phone)
-    .order("created_at", { ascending: true });
 
   if (dogsError) {
     return NextResponse.json({ error: dogsError.message }, { status: 500 });
